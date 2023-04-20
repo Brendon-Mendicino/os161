@@ -3,6 +3,11 @@
         "autoconf.h": "c",
         "lib.h": "c",
         "opt-noasserts.h": "c",
-        "version.h": "c"
+        "version.h": "c",
+        "thread.h": "c",
+        "syscall.h": "c",
+        "opt-syscalls.h": "c",
+        "unistd.h": "c",
+        "vm.h": "c"
     }
 }

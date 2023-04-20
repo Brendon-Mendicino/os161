@@ -30,6 +30,8 @@
 #ifndef _SYSCALL_H_
 #define _SYSCALL_H_
 
+#include <types.h>
+#include "opt-syscalls.h"
 
 #include <cdefs.h> /* for __DEAD */
 struct trapframe; /* from <machine/trapframe.h> */
@@ -58,5 +60,20 @@ __DEAD void enter_new_process(int argc, userptr_t argv, userptr_t env,
 
 int sys_reboot(int code);
 int sys___time(userptr_t user_seconds, userptr_t user_nanoseconds);
+
+#if OPT_SYSCALLS
+
+/// @brief write `nbytes` of `buf` to the `fd` 
+/// @param fd file descriptor
+/// @param buf buffer to read from
+/// @param nbytes number of bytes to write
+/// @return returns number of bytes wrote to the file descriptor,
+/// 	-1 if any error accurred
+ssize_t sys_write(int fd, const void *buf, size_t nbytes);
+
+
+void sys_exit(int status);
+
+#endif // OPT_SYSCALLS
 
 #endif /* _SYSCALL_H_ */
