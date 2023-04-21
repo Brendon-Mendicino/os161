@@ -38,6 +38,7 @@
 #include <mips/tlb.h>
 #include <addrspace.h>
 #include <vm.h>
+#include <machine/atable.h>
 
 /*
  * Dumb MIPS-only "VM system" that is intended to only be just barely
@@ -64,10 +65,21 @@
  */
 static struct spinlock stealmem_lock = SPINLOCK_INITIALIZER;
 
+/*
+ * Wrap atable in a spinlock.
+ */
+static struct spinlock atable_lock = SPINLOCK_INITIALIZER;
+
+/*
+* Allocation page table
+*/
+static struct atable *atable = NULL;
+
 void
 vm_bootstrap(void)
 {
-	/* Do nothing. */
+	atable = atable_create();
+	kprintf("vm initialized with: %d page frames available\n", atable_get_size(atable));
 }
 
 /*
@@ -96,11 +108,19 @@ getppages(unsigned long npages)
 {
 	paddr_t addr;
 
-	spinlock_acquire(&stealmem_lock);
+	if (atable == NULL)
+	{
+		spinlock_acquire(&stealmem_lock);
+		addr = ram_stealmem(npages);
+		spinlock_release(&stealmem_lock);
+	}
+	else
+	{
+		spinlock_acquire(&atable_lock);
+		addr = atable_getfreeppages(atable, npages);
+		spinlock_release(&atable_lock);
+	}
 
-	addr = ram_stealmem(npages);
-
-	spinlock_release(&stealmem_lock);
 	return addr;
 }
 
@@ -121,9 +141,12 @@ alloc_kpages(unsigned npages)
 void
 free_kpages(vaddr_t addr)
 {
-	/* nothing - leak the memory. */
+	paddr_t paddr;
 
-	(void)addr;
+	paddr = addr - MIPS_KSEG0;
+	spinlock_acquire(&atable_lock);
+	atable_freeppages(atable, paddr);
+	spinlock_release(&atable_lock);
 }
 
 void

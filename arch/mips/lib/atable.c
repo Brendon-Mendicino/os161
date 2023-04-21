@@ -182,3 +182,8 @@ void atable_freeppages(struct atable *t, paddr_t addr)
     }
 }
 
+unsigned atable_get_size(struct atable *t)
+{
+    KASSERT(t != NULL);
+    return t->nbits;
+}

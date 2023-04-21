@@ -17,4 +17,6 @@ paddr_t atable_getfreeppages(struct atable *t, unsigned long npages);
 
 void atable_freeppages(struct atable *t, paddr_t addr);
 
+unsigned atable_get_size(struct atable *t);
+
 #endif // _ATABLE_H_

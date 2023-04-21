@@ -116,6 +116,17 @@ void syscall(struct trapframe *tf)
 						(const void *)tf->tf_a1,
 						(size_t)tf->tf_a2);
 		break;
+
+	case SYS_read:
+		err = sys_read((int)tf->tf_a0,
+						(const void *)tf->tf_a1,
+						(size_t)tf->tf_a2);
+		break;
+	
+	case SYS__exit:
+		_exit((int)tf->tf_a0);
+		panic("_exit returned\n");
+		break;
 #endif
 
 	default:
