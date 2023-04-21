@@ -69,10 +69,12 @@ int sys___time(userptr_t user_seconds, userptr_t user_nanoseconds);
 /// @param nbytes number of bytes to write
 /// @return returns number of bytes wrote to the file descriptor,
 /// 	-1 if any error accurred
-ssize_t sys_write(int fd, const void *buf, size_t nbytes);
+ssize_t sys_write(int fd, const void *buf, size_t nbyte);
+
+ssize_t sys_read(int fd, const void *buf, size_t nbyte);
 
 
-void sys_exit(int status);
+void _exit(int status);
 
 #endif // OPT_SYSCALLS
 
