@@ -24,7 +24,7 @@
  */
 #define ALLOC_TYPE size_t
 
-#define ALIGN_BYTE (4)
+#define ALIGN_BYTE (sizeof(size_t))
 #define ALIGN_4BYTE(addr) ((((addr) % ALIGN_BYTE) == 0) ? (addr) : ((addr) - ((addr) % ALIGN_BYTE) + ALIGN_BYTE))
 
 struct atable
@@ -44,6 +44,7 @@ atable_create(void)
     size_t nbits = 0;
     size_t words;
     size_t npages;
+    size_t tsize;
     paddr_t ram_size;
     paddr_t first_available;
     size_t ram_free_space;
@@ -53,20 +54,23 @@ atable_create(void)
 
     ram_size = ram_getsize() - first_available;
 
+    tsize = sizeof(struct atable);
     // Calculate the space that the bitmap and the alloc_space take
-    // ram_size = x + a + x/(PAGE_SIZE * BITS_PER_WORD) + x*sizeof(ALLOC_TYPE)/PAGE_SIZE
+    // ram_size = x + a + x/(p * CHAR_BIT) + x*sizeof(ALLOC_TYPE)/p
     // x = ram_free_space
+    // p = PAGE_SIZE
     // a = sizeof(struct atable)
-    ram_free_space = (size_t)(ram_size - sizeof(struct atable)) * PAGE_SIZE / (1 + BITS_PER_WORD * PAGE_SIZE + BITS_PER_WORD * sizeof(ALLOC_TYPE));
+    ram_free_space = (size_t)(ram_size - tsize)/(1 + CHAR_BIT * PAGE_SIZE + CHAR_BIT * sizeof(ALLOC_TYPE));
+    ram_free_space *= PAGE_SIZE * CHAR_BIT;
 
     // checkt he size of "atable + bitmap + alloc_space + alignment padding" in pages
-    npages = DIVROUNDUP(sizeof(struct atable) + ram_free_space / (PAGE_SIZE * BITS_PER_WORD) * (1 + sizeof(ALLOC_TYPE) * BITS_PER_WORD) + 3 * ALIGN_BYTE, PAGE_SIZE);
+    npages = DIVROUNDUP(tsize + ram_free_space / (PAGE_SIZE * BITS_PER_WORD) * (1 + sizeof(ALLOC_TYPE) * BITS_PER_WORD) + 3 * ALIGN_BYTE, PAGE_SIZE);
     ram_free_space -= npages * PAGE_SIZE;
 
     // check if the data fits in the ram
     nbits = ram_free_space * BITS_PER_WORD / (PAGE_SIZE);
     words = DIVROUNDUP(nbits, BITS_PER_WORD);
-    KASSERT(sizeof(struct atable) + words + words * sizeof(ALLOC_TYPE) + ram_free_space < ram_getsize());
+    KASSERT(sizeof(struct atable) + words + words * sizeof(ALLOC_TYPE) + 3 * ALIGN_BYTE + ram_free_space < ram_getsize());
 
     table = (struct atable *)PADDR_TO_KVADDR(first_available);
 
@@ -74,7 +78,7 @@ atable_create(void)
     table->ntaken = 0;
     table->firstpaddr = first_available + npages * PAGE_SIZE;
     /* align on 4 bytes */
-    table->taken_pages = (WORD_TYPE *)ALIGN_4BYTE((size_t)table + sizeof(struct atable));
+    table->taken_pages = (WORD_TYPE *)ALIGN_4BYTE((size_t)table + tsize);
     /* align on 4 bytes */
     table->alloc_space = (ALLOC_TYPE *)ALIGN_4BYTE((size_t)table->taken_pages + words);
 
