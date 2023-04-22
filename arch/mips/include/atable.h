@@ -13,10 +13,10 @@ struct atable; /* Opaque */
 
 struct atable *atable_create(void);
 
-paddr_t atable_getfreeppages(struct atable *t, unsigned long npages);
+paddr_t atable_getfreeppages(struct atable *t, size_t npages);
 
 void atable_freeppages(struct atable *t, paddr_t addr);
 
-unsigned atable_get_size(struct atable *t);
+size_t atable_get_size(struct atable *t);
 
 #endif // _ATABLE_H_

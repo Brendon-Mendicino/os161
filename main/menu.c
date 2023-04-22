@@ -360,6 +360,22 @@ cmd_quit(int nargs, char **args)
 }
 
 /*
+ * Command for showing memory statistics
+ */
+static int
+cmd_memstat(int nargs, char **args)
+{
+	(void)nargs;
+	(void)args;
+
+	kprintf("\n");
+	kprintf("OS161 Memory usage statistics:\n");
+	kprintf("Memory statistics:\n");
+	// TODO: finish
+	return 0;
+}
+
+/*
  * Command for mounting a filesystem.
  */
 
@@ -536,6 +552,7 @@ static const char *opsmenu[] = {
 	"[debug]   Drop to debugger          ",
 	"[panic]   Intentional panic         ",
 	"[deadlock] Intentional deadlock     ",
+	"[memstat] Check memory usage 		 ",
 	"[q]       Quit and shut down        ",
 	NULL
 };
@@ -647,6 +664,7 @@ static struct {
 	{ "q",		cmd_quit },
 	{ "exit",	cmd_quit },
 	{ "halt",	cmd_quit },
+	{ "memstat", cmd_memstat },
 
 	/* stats */
 	{ "kh",         cmd_kheapstats },
