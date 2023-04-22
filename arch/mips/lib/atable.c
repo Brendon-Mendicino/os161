@@ -70,7 +70,7 @@ atable_create(void)
     // check if the data fits in the ram
     nbits = ram_free_space * BITS_PER_WORD / (PAGE_SIZE);
     words = DIVROUNDUP(nbits, BITS_PER_WORD);
-    KASSERT(sizeof(struct atable) + words + words * sizeof(ALLOC_TYPE) + 3 * ALIGN_BYTE + ram_free_space < ram_getsize());
+    KASSERT(sizeof(struct atable) + words + words * sizeof(ALLOC_TYPE) + 3 * ALIGN_BYTE + ram_free_space <= ram_getsize());
 
     table = (struct atable *)PADDR_TO_KVADDR(first_available);
 
@@ -130,6 +130,7 @@ atable_getfreeppages(struct atable *t, size_t npages)
     size_t ix;
     WORD_TYPE mask;
 
+    KASSERT(t != NULL);
     KASSERT(npages < t->nbits);
 
     found = false;
@@ -176,6 +177,8 @@ void atable_freeppages(struct atable *t, paddr_t addr)
     WORD_TYPE mask;
     size_t index;
     size_t npages;
+
+    KASSERT(t != NULL);
 
     index = (addr - t->firstpaddr) / PAGE_SIZE;
     KASSERT(index < t->nbits);
