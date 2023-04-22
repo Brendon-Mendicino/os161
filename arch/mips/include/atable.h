@@ -11,12 +11,17 @@
 
 struct atable; /* Opaque */
 
+/**
+ * This function should be called only during the VM bootstrap, it also
+ * must be called once.
+ */
 struct atable *atable_create(void);
 
 paddr_t atable_getfreeppages(struct atable *t, size_t npages);
-
 void atable_freeppages(struct atable *t, paddr_t addr);
 
-size_t atable_get_size(struct atable *t);
+size_t atable_size(struct atable *t);
+size_t atable_capacity(struct atable *t);
+
 
 #endif // _ATABLE_H_

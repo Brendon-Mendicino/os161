@@ -30,12 +30,11 @@
 struct atable
 {
     size_t nbits;
-    /// @brief bitmap
+    size_t ntaken;
+    paddr_t firstpaddr;
     WORD_TYPE *taken_pages;
     /// @brief size of allocated contiguos pages associated to paddr
     ALLOC_TYPE *alloc_space;
-
-    paddr_t firstpaddr;
 };
 
 struct atable *
@@ -72,6 +71,7 @@ atable_create(void)
     table = (struct atable *)PADDR_TO_KVADDR(first_available);
 
     table->nbits = nbits;
+    table->ntaken = 0;
     table->firstpaddr = first_available + npages * PAGE_SIZE;
     /* align on 4 bytes */
     table->taken_pages = (WORD_TYPE *)ALIGN_4BYTE((size_t)table + sizeof(struct atable));
@@ -161,6 +161,8 @@ atable_getfreeppages(struct atable *t, size_t npages)
         t->taken_pages[ix] |= mask;
     }
 
+    t->ntaken += npages;
+
     return t->firstpaddr + (paddr_t)first_free * PAGE_SIZE;
 }
 
@@ -184,9 +186,19 @@ void atable_freeppages(struct atable *t, paddr_t addr)
         KASSERT((t->taken_pages[ix] & mask) != 0);
         t->taken_pages[ix] &= ~mask;
     }
+
+    t->ntaken -= npages;
 }
 
-size_t atable_get_size(struct atable *t)
+size_t
+atable_size(struct atable *t)
+{
+    KASSERT(t != NULL);
+    return t->ntaken;
+}
+
+size_t
+atable_capacity(struct atable *t)
 {
     KASSERT(t != NULL);
     return t->nbits;

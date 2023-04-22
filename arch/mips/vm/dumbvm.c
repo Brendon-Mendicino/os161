@@ -79,7 +79,7 @@ void
 vm_bootstrap(void)
 {
 	atable = atable_create();
-	kprintf("vm initialized with: %d page frames available\n", atable_get_size(atable));
+	kprintf("vm initialized with: %d page frames available\n", atable_size(atable));
 }
 
 /*
@@ -255,6 +255,15 @@ vm_fault(int faulttype, vaddr_t faultaddress)
 	kprintf("dumbvm: Ran out of TLB entries - cannot handle page fault\n");
 	splx(spl);
 	return EFAULT;
+}
+
+void
+vm_kpages_stats(size_t *tot, size_t *ntaken)
+{
+	spinlock_acquire(&atable_lock);
+	*tot = atable_capacity(atable);
+	*ntaken = atable_size(atable);
+	spinlock_release(&atable_lock);
 }
 
 struct addrspace *
