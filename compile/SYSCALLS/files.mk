@@ -105,6 +105,7 @@ SRCS.MACHINE.mips+=$(TOP)/common/gcc-millicode/udivdi3.c
 SRCS.MACHINE.mips+=$(TOP)/common/gcc-millicode/umoddi3.c
 SRCS.MACHINE.mips+=$(TOP)/common/gcc-millicode/xordi3.c
 SRCS.MACHINE.mips+=$(TOP)/common/libc/arch/mips/setjmp.S
+SRCS.MACHINE.mips+=$(KTOP)/arch/mips/lib/atable.c
 SRCS.MACHINE.mips+=$(KTOP)/arch/mips/locore/trap.c
 SRCS.MACHINE.mips+=$(KTOP)/arch/mips/syscall/syscall.c
 SRCS.MACHINE.mips+=$(KTOP)/arch/mips/thread/cpu.c

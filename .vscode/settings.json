@@ -8,6 +8,12 @@
         "syscall.h": "c",
         "opt-syscalls.h": "c",
         "unistd.h": "c",
-        "vm.h": "c"
+        "vm.h": "c",
+        "bitmap.h": "c",
+        "tlb.h": "c",
+        "ftable.h": "c",
+        "types.h": "c",
+        "proc.h": "c",
+        "addrspace.h": "c"
     }
 }
