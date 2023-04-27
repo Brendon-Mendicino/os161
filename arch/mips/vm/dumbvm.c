@@ -143,6 +143,8 @@ free_kpages(vaddr_t addr)
 {
 	paddr_t paddr;
 
+	dumbvm_can_sleep();
+	KASSERT(addr != 0);
 	paddr = addr - MIPS_KSEG0;
 	spinlock_acquire(&atable_lock);
 	atable_freeppages(atable, paddr);
@@ -289,6 +291,20 @@ void
 as_destroy(struct addrspace *as)
 {
 	dumbvm_can_sleep();
+
+	/* as_pbase2 could be 0 */
+	KASSERT(as->as_pbase1 != 0);
+	KASSERT(as->as_stackpbase != 0);
+
+	/* TODO: modifi in the future */
+	spinlock_acquire(&atable_lock);
+	atable_freeppages(atable, as->as_pbase1);
+	atable_freeppages(atable, as->as_stackpbase);
+
+	if (as->as_npages2 > 0)
+		atable_freeppages(atable, as->as_pbase2);
+	spinlock_release(&atable_lock);
+
 	kfree(as);
 }
 
