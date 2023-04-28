@@ -14,6 +14,11 @@
         "ftable.h": "c",
         "types.h": "c",
         "proc.h": "c",
-        "addrspace.h": "c"
+        "addrspace.h": "c",
+        "synch.h": "c",
+        "array": "c",
+        "*.tcc": "c",
+        "atable.h": "c",
+        "opt-allocator.h": "c"
     }
 }
