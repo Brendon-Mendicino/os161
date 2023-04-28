@@ -286,6 +286,9 @@ file      lib/uio.c
 
 defoption noasserts
 
+defoption   allocator
+optfile     allocator lib/atable.c
+
 
 #
 # Standard C functions
@@ -328,6 +331,8 @@ file      thread/threadlist.c
 
 defoption hangman
 optfile   hangman thread/hangman.c
+
+defoption lock
 
 #
 # Process system

@@ -1,6 +1,10 @@
 #ifndef _ATABLE_H_
 #define _ATABLE_H_
 
+#include "opt-allocator.h"
+
+#if OPT_ALLOCATOR
+
 /**
  * Allocation Page Table, this is the first data structure created in memory
  * during vm_bootstrap() that allows allocation and deallocation of page frames
@@ -23,5 +27,6 @@ void atable_freeppages(struct atable *t, paddr_t addr);
 size_t atable_size(struct atable *t);
 size_t atable_capacity(struct atable *t);
 
+#endif // OPT_ALLOCATOR
 
 #endif // _ATABLE_H_

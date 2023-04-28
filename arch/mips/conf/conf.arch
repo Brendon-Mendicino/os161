@@ -83,4 +83,4 @@ machine mips file    arch/mips/syscall/syscall.c	# System call handler
 # Lib, various machine utilities
 #
 
-machine mips file   arch/mips/lib/atable.c
+#machine mips file   arch/mips/lib/atable.c

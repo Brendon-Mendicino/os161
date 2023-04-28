@@ -38,7 +38,7 @@
 #include <mips/tlb.h>
 #include <addrspace.h>
 #include <vm.h>
-#include <machine/atable.h>
+#include <atable.h>
 
 /*
  * Dumb MIPS-only "VM system" that is intended to only be just barely
@@ -61,25 +61,24 @@
 #define DUMBVM_STACKPAGES    18
 
 /*
- * Wrap ram_stealmem in a spinlock.
+ * Wrap ram memory acces in a spinlock.
  */
-static struct spinlock stealmem_lock = SPINLOCK_INITIALIZER;
-
-/*
- * Wrap atable in a spinlock.
- */
-static struct spinlock atable_lock = SPINLOCK_INITIALIZER;
+static struct spinlock mem_lock = SPINLOCK_INITIALIZER;
 
 /*
 * Allocation page table
 */
+#if OPT_ALLOCATOR
 static struct atable *atable = NULL;
+#endif
 
 void
 vm_bootstrap(void)
 {
+#if OPT_ALLOCATOR
 	atable = atable_create();
 	kprintf("vm initialized with: %d page frames available\n", atable_size(atable));
+#endif // OPT_ALLOCATOR
 }
 
 /*
@@ -98,6 +97,10 @@ dumbvm_can_sleep(void)
 		KASSERT(curcpu->c_spinlocks == 0);
 
 		/* must not be in an interrupt handler */
+		if (curthread->t_in_interrupt != 0)
+		{
+			kprintf("non ealkdjsflkj");
+		}
 		KASSERT(curthread->t_in_interrupt == 0);
 	}
 }
@@ -108,18 +111,26 @@ getppages(unsigned long npages)
 {
 	paddr_t addr;
 
+#if OPT_ALLOCATOR
 	if (atable == NULL)
 	{
-		spinlock_acquire(&stealmem_lock);
+		spinlock_acquire(&mem_lock);
 		addr = ram_stealmem(npages);
-		spinlock_release(&stealmem_lock);
+		spinlock_release(&mem_lock);
+
+		return addr;
 	}
 	else
 	{
-		spinlock_acquire(&atable_lock);
+		spinlock_acquire(&mem_lock);
 		addr = atable_getfreeppages(atable, npages);
-		spinlock_release(&atable_lock);
+		spinlock_release(&mem_lock);
 	}
+#else // OPT_ALLOCATOR
+	spinlock_acquire(&mem_lock);
+	addr = ram_stealmem(npages);
+	spinlock_release(&mem_lock);
+#endif // OPT_ALLOCATOR
 
 	return addr;
 }
@@ -143,12 +154,16 @@ free_kpages(vaddr_t addr)
 {
 	paddr_t paddr;
 
-	dumbvm_can_sleep();
 	KASSERT(addr != 0);
+
+#if OPT_ALLOCATOR
 	paddr = addr - MIPS_KSEG0;
-	spinlock_acquire(&atable_lock);
+	spinlock_acquire(&mem_lock);
 	atable_freeppages(atable, paddr);
-	spinlock_release(&atable_lock);
+	spinlock_release(&mem_lock);
+#else
+	(void)paddr;
+#endif // OPT_ALLOCATOR
 }
 
 void
@@ -262,10 +277,15 @@ vm_fault(int faulttype, vaddr_t faultaddress)
 void
 vm_kpages_stats(size_t *tot, size_t *ntaken)
 {
-	spinlock_acquire(&atable_lock);
+#if OPT_ALLOCATOR
+	spinlock_acquire(&mem_lock);
 	*tot = atable_capacity(atable);
 	*ntaken = atable_size(atable);
-	spinlock_release(&atable_lock);
+	spinlock_release(&mem_lock);
+#else
+	(void)tot;
+	(void)ntaken;
+#endif // OPT_ALLOCATOR
 }
 
 struct addrspace *
@@ -296,14 +316,16 @@ as_destroy(struct addrspace *as)
 	KASSERT(as->as_pbase1 != 0);
 	KASSERT(as->as_stackpbase != 0);
 
+#if OPT_ALLOCATOR
 	/* TODO: modifi in the future */
-	spinlock_acquire(&atable_lock);
+	spinlock_acquire(&mem_lock);
 	atable_freeppages(atable, as->as_pbase1);
 	atable_freeppages(atable, as->as_stackpbase);
 
 	if (as->as_npages2 > 0)
 		atable_freeppages(atable, as->as_pbase2);
-	spinlock_release(&atable_lock);
+	spinlock_release(&mem_lock);
+#endif // OPT_ALLOCATOR
 
 	kfree(as);
 }
