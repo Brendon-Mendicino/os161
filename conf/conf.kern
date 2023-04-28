@@ -333,6 +333,7 @@ defoption hangman
 optfile   hangman thread/hangman.c
 
 defoption lock
+defoption cv
 
 #
 # Process system

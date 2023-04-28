@@ -30,6 +30,9 @@
 #ifndef _SYNCH_H_
 #define _SYNCH_H_
 
+#include "opt-lock.h"
+#include "opt-cv.h"
+
 /*
  * Header file for synchronization primitives.
  */
@@ -74,6 +77,12 @@ void V(struct semaphore *);
 struct lock
 {
     char *lk_name;
+#if OPT_LOCK
+    struct wchan *lk_wchan;
+    struct spinlock lk_lock;
+    struct thread *lk_owner;
+    volatile bool locked;
+#endif // OPT_LOCK
     HANGMAN_LOCKABLE(lk_hangman); /* Deadlock detector hook. */
 };
 
