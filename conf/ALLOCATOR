@@ -36,3 +36,4 @@ options dumbvm			# Chewing gum and baling wire.
 options syscalls        # Enable new syscalls
 
 options allocator       # Enable allocator
+options lock            # Enable locks
