@@ -294,7 +294,17 @@ cv_create(const char *name)
         return NULL;
     }
 
-    // add stuff here as needed
+#if OPT_CV
+    cv->cv_wchan = wchan_create(cv->cv_name);
+    if (cv->cv_wchan == NULL)
+    {
+        kfree(cv->cv_name);
+        kfree(cv);
+        return NULL;
+    }
+
+    spinlock_init(&cv->cv_lock);
+#endif // OPT_CV
 
     return cv;
 }
@@ -303,29 +313,62 @@ void cv_destroy(struct cv *cv)
 {
     KASSERT(cv != NULL);
 
-    // add stuff here as needed
-
+#if OPT_CV
+    /* wchan_cleanup will assert if anyone's waiting on it */
+    spinlock_cleanup(&cv->cv_lock);
+    wchan_destroy(cv->cv_wchan);
+#endif // OPT_CV
     kfree(cv->cv_name);
     kfree(cv);
 }
 
 void cv_wait(struct cv *cv, struct lock *lock)
 {
-    // Write this
+#if OPT_CV
+    /*
+     * Using MESA semantics
+     */
+    spinlock_acquire(&cv->cv_lock);
+
+    lock_release(lock);
+    wchan_sleep(cv->cv_wchan, &cv->cv_lock);
+    spinlock_release(&cv->cv_lock);
+
+    lock_acquire(lock);
+#else  // OPT_CV
     (void)cv;   // suppress warning until code gets written
     (void)lock; // suppress warning until code gets written
+#endif // OPT_CV
 }
 
 void cv_signal(struct cv *cv, struct lock *lock)
 {
-    // Write this
+#if OPT_CV
+    spinlock_acquire(&cv->cv_lock);
+
+    lock_release(lock);
+    wchan_wakeone(cv->cv_wchan, &cv->cv_lock);
+    spinlock_release(&cv->cv_lock);
+
+    lock_acquire(lock);
+#else  // OPT_CV
     (void)cv;   // suppress warning until code gets written
     (void)lock; // suppress warning until code gets written
+#endif // OPT_CV
 }
 
 void cv_broadcast(struct cv *cv, struct lock *lock)
 {
-    // Write this
+#if OPT_CV
+    spinlock_acquire(&cv->cv_lock);
+
+    lock_release(lock);
+    wchan_wakeall(cv->cv_wchan, &cv->cv_lock);
+    spinlock_release(&cv->cv_lock);
+
+    lock_acquire(lock);
+#else  // OPT_CV
     (void)cv;   // suppress warning until code gets written
     (void)lock; // suppress warning until code gets written
+#endif // OPT_CV
 }
