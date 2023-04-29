@@ -76,8 +76,13 @@ void
 vm_bootstrap(void)
 {
 #if OPT_ALLOCATOR
+	spinlock_acquire(&mem_lock);
+
+	KASSERT(atable == NULL);
 	atable = atable_create();
-	kprintf("vm initialized with: %d page frames available\n", atable_size(atable));
+	kprintf("vm initialized with: %d page frames available\n", atable_capacity(atable));
+
+	spinlock_release(&mem_lock);
 #endif // OPT_ALLOCATOR
 }
 

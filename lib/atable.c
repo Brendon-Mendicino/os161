@@ -60,7 +60,7 @@ atable_create(void)
     // x = ram_free_space
     // p = PAGE_SIZE
     // a = sizeof(struct atable)
-    ram_free_space = (size_t)(ram_size - tsize)/(1 + CHAR_BIT * PAGE_SIZE + CHAR_BIT * sizeof(ALLOC_TYPE));
+    ram_free_space = (size_t)(ram_size - tsize) / (1 + CHAR_BIT * PAGE_SIZE + CHAR_BIT * sizeof(ALLOC_TYPE));
     ram_free_space *= PAGE_SIZE * CHAR_BIT;
 
     // checkt he size of "atable + bitmap + alloc_space + alignment padding" in pages
@@ -179,6 +179,19 @@ void atable_freeppages(struct atable *t, paddr_t addr)
     size_t npages;
 
     KASSERT(t != NULL);
+
+    if (addr < t->firstpaddr)
+    {
+        /*
+         * If the Page was allocated before 'allocation page table'
+         * creation, it's very difficoult
+         * to track it down, also the space allocated
+         * before the atable is untracked
+         * by it, because the memory is very
+         * contained we simply leak.
+         */
+        return;
+    }
 
     index = (addr - t->firstpaddr) / PAGE_SIZE;
     KASSERT(index < t->nbits);
