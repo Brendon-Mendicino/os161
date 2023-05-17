@@ -59,3 +59,6 @@ dkms.conf
 # /compile/**/kernel
 # /compile/**/vers.c
 # /compile/**/version
+
+# VSCODE
+.vscode/settings.json
