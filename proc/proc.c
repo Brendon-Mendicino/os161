@@ -52,7 +52,13 @@
 /*
  * The process for the kernel; this holds all the kernel-only threads.
  */
-struct proc *kproc;
+struct proc kproc = {
+	.p_name        = (char *)"[kernel]",
+	.p_lock        = SPINLOCK_INITIALIZER,
+	.p_numthreads  = 0,
+	.p_addrspace   = NULL,
+	.p_cwd         = NULL,
+};
 
 /*
  * Create a proc structure.
@@ -103,7 +109,7 @@ proc_destroy(struct proc *proc)
 	 */
 
 	KASSERT(proc != NULL);
-	KASSERT(proc != kproc);
+	KASSERT(proc != &kproc);
 
 	/*
 	 * We don't take p_lock in here because we must have the only
@@ -178,10 +184,7 @@ proc_destroy(struct proc *proc)
 void
 proc_bootstrap(void)
 {
-	kproc = proc_create("[kernel]");
-	if (kproc == NULL) {
-		panic("proc_create for kproc failed\n");
-	}
+    /* kproc is statically initialized */
 }
 
 /*

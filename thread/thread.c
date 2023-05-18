@@ -242,7 +242,7 @@ cpu_create(unsigned hardware_number)
 
 	HANGMAN_ACTORINIT(&c->c_hangman, "cpu");
 
-	result = proc_addthread(kproc, c->c_curthread);
+	result = proc_addthread(&kproc, c->c_curthread);
 	if (result) {
 		panic("cpu_create: proc_addthread:: %s\n", strerror(result));
 	}
@@ -389,7 +389,7 @@ thread_bootstrap(void)
 	KASSERT(curcpu != NULL);
 	KASSERT(curthread != NULL);
 	KASSERT(curthread->t_proc != NULL);
-	KASSERT(curthread->t_proc == kproc);
+	KASSERT(curthread->t_proc == &kproc);
 
 	/* Done */
 }
