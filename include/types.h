@@ -152,4 +152,26 @@ typedef _Bool bool;
 #define true  1
 #define false 0
 
+/*
+ * Circular doubly linked list
+ */
+struct list_head {
+	struct list_head *next, *prev;
+};
+
+/*
+ * Double linked lists with a single pointer list head.
+ * Mostly useful for hash tables where the two pointer list head is
+ * too wasteful.
+ * You lose the ability to access the tail in O(1).
+ */
+struct hlist_head {
+	struct hlist_node *first;
+};
+
+struct hlist_node {
+	struct hlist_node *next, **pprev;
+};
+
+
 #endif /* _TYPES_H_ */
