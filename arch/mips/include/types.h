@@ -43,4 +43,7 @@
 typedef __u32 paddr_t;
 typedef __u32 vaddr_t;
 
+
+#define BITS_PER_LONG 32
+
 #endif /* _MIPS_TYPES_H_ */

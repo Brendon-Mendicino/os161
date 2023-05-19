@@ -9,6 +9,11 @@
 #include <types.h>
 #include <container_of.h>
 
+/**
+ * Returns the size of a static array
+ */
+#define ARRAY_SIZE(x) (sizeof(x) / sizeof(*(x)))
+
 /*
  * Circular doubly linked list implementation.
  *
@@ -41,10 +46,14 @@ static inline bool __list_add_valid(struct list_head *new,
 				struct list_head *prev,
 				struct list_head *next)
 {
+	(void)new;
+	(void)prev;
+	(void)next;
 	return true;
 }
 static inline bool __list_del_entry_valid(struct list_head *entry)
 {
+	(void)entry;
 	return true;
 }
 
@@ -281,7 +290,7 @@ static inline int list_is_head(const struct list_head *list, const struct list_h
  */
 static inline int list_empty(const struct list_head *head)
 {
-	return READ_ONCE(head->next) == head;
+	return head->next == head;
 }
 
 /**
