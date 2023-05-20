@@ -494,7 +494,7 @@ thread_make_runnable(struct thread *target, bool already_have_lock)
 int
 thread_fork(const char *name,
 	    struct proc *proc,
-	    void (*entrypoint)(void *data1, unsigned long data2),
+	    void (*entrypoint)(void *, unsigned long),
 	    void *data1, unsigned long data2)
 {
 	struct thread *newthread;
@@ -798,6 +798,24 @@ thread_exit(void)
         splhigh();
 	thread_switch(S_ZOMBIE, NULL, NULL);
 	panic("braaaaaaaiiiiiiiiiiinssssss\n");
+}
+
+/*
+ * Causes the current thread to exit without
+ * removing the thread from a process.
+ */
+void thread_stop(void)
+{
+	/* Make sure we *are* detached (move this only if you're sure!) */
+	KASSERT(curthread->t_proc == NULL);
+
+	/* Check the stack guard band. */
+	thread_checkstack(curthread);
+
+	/* Interrupts off on this processor */
+    splhigh();
+	thread_switch(S_ZOMBIE, NULL, NULL);
+	panic("thread_stop returned\n");
 }
 
 /*
