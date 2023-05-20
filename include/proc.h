@@ -37,6 +37,15 @@
  */
 
 #include <spinlock.h>
+#include <types.h>
+#include <limits.h>
+#include <synch.h>
+#include "opt-syscalls.h"
+
+typedef enum {
+	PROC_NEW,
+	PROC_RUNNING,
+} proc_state_t;
 
 struct addrspace;
 struct thread;
@@ -70,11 +79,38 @@ struct proc {
 	/* VFS */
 	struct vnode *p_cwd;		/* current working directory */
 
-	/* add more material here as needed */
+#if OPT_SYSCALLS
+	/* waitpid cv */
+	struct cv *wait_cv;
+	/* waitpid lock */
+	struct lock *wait_lock;
+
+	unsigned int state;
+	unsigned int exit_state;
+	int exit_code;
+
+	struct list_head procs;
+	struct list_head children;
+	struct list_head siblings;
+
+	/* Recipient of SIGCHLD */
+	struct proc *parent;
+
+	pid_t pid;
+
+	/* PID hash table linkage */
+	struct hlist_node pid_link;
+#endif // OPT_SYSCALLS
 };
 
 /* This is the process structure for the kernel and for kernel-only threads. */
 extern struct proc kproc;
+
+#if OPT_SYSCALLS
+extern void proc_make_zombie(int exit_code, struct proc *proc);
+
+extern int proc_check_zombie(pid_t pid, int options, struct proc *proc);
+#endif
 
 /* Call once during system startup to allocate data structures. */
 void proc_bootstrap(void);

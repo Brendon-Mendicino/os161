@@ -122,10 +122,22 @@ void syscall(struct trapframe *tf)
 						(const void *)tf->tf_a1,
 						(size_t)tf->tf_a2);
 		break;
+
+	case SYS_waitpid:
+		retval = sys_waitpid((pid_t)tf->tf_a0,
+							(int *)tf->tf_a1,
+							(int)tf->tf_a2);
+		err = (retval == -1) ? -1 : 0;
+		break;
+
+	case SYS_getpid:
+		retval = sys_getpid();
+		err = 0;
+		break;
 	
 	case SYS__exit:
-		_exit((int)tf->tf_a0);
-		panic("_exit returned\n");
+		sys__exit((int)tf->tf_a0);
+		panic("sys__exit returned\n");
 		break;
 #endif
 

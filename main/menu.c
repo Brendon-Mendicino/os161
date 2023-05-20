@@ -46,6 +46,7 @@
 #include <test.h>
 #include "opt-sfs.h"
 #include "opt-net.h"
+#include "opt-syscalls.h"
 
 /*
  * In-kernel menu and command dispatcher.
@@ -133,6 +134,10 @@ common_prog(int nargs, char **args)
 		proc_destroy(proc);
 		return result;
 	}
+
+#if OPT_SYSCALLS
+	sys_waitpid(proc->pid, NULL, 0);
+#endif // OPT_SYSCALLS
 
 	/*
 	 * The new process will be destroyed when the program exits...

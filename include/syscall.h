@@ -73,8 +73,11 @@ ssize_t sys_write(int fd, const void *buf, size_t nbyte);
 
 ssize_t sys_read(int fd, const void *buf, size_t nbyte);
 
+extern void sys__exit(int status);
 
-void _exit(int status);
+extern pid_t sys_waitpid(pid_t pid, int *wstatus, int options);
+
+extern pid_t sys_getpid(void);
 
 #endif // OPT_SYSCALLS
 

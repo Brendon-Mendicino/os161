@@ -42,6 +42,10 @@
  * process that will have more than one thread is the kernel process.
  */
 
+#include <kern/errno.h>
+#include <kern/wait.h>
+#include <list.h>
+#include <hashtable.h>
 #include <types.h>
 #include <spl.h>
 #include <proc.h>
@@ -49,16 +53,129 @@
 #include <addrspace.h>
 #include <vnode.h>
 
+
+
+#define PROC_RUNNING   0x00000000
+#define PROC_NEW       0x00000001
+#define PROC_ZOMBIE    0x00000002
+
+
+
 /*
  * The process for the kernel; this holds all the kernel-only threads.
  */
 struct proc kproc = {
-	.p_name        = (char *)"[kernel]",
-	.p_lock        = SPINLOCK_INITIALIZER,
-	.p_numthreads  = 0,
-	.p_addrspace   = NULL,
-	.p_cwd         = NULL,
+	.p_name           = (char *)"[kernel]",
+	.p_lock           = SPINLOCK_INITIALIZER,
+	.p_numthreads     = 0,
+	.p_addrspace      = NULL,
+	.p_cwd            = NULL,
+#if OPT_SYSCALLS   
+	.wait_cv          = NULL,
+	.wait_lock        = NULL,
+    .state            = PROC_RUNNING,
+    .exit_state       = PROC_RUNNING,
+    .procs            = LIST_HEAD_INIT(kproc.procs),
+    .children         = LIST_HEAD_INIT(kproc.children),
+	.siblings         = LIST_HEAD_INIT(kproc.siblings),
+	.parent           = NULL,
+    .pid              = 0,
+	.pid_link         = { .next = NULL, .pprev = NULL },
+#endif // OPT_SYSCALLS
 };
+
+#if OPT_SYSCALLS
+/**
+ * Construct a new define hashtable object
+ */
+DEFINE_HASHTABLE(proc_table, 5);
+
+static inline
+void add_children(struct proc *new, struct proc *head)
+{
+	lock_acquire(head->wait_lock);
+	list_add_tail(&new->siblings, &head->children);
+	lock_release(head->wait_lock);
+}
+
+void proc_make_zombie(int exit_code, struct proc *proc)
+{
+	lock_acquire(proc->wait_lock);
+	proc->exit_state = PROC_ZOMBIE;
+	proc->exit_code = exit_code;
+	cv_broadcast(proc->wait_cv, proc->wait_lock);
+	lock_release(proc->wait_lock);
+}
+
+static struct proc *
+proc_get_child(pid_t pid, struct proc *proc)
+{
+	struct proc *found = NULL;
+	struct proc *child;
+
+	lock_acquire(proc->wait_lock);
+	hash_for_each_possible(proc_table, child, pid_link, pid) {
+		if (child->pid != pid || child->parent != proc)
+			continue;
+
+		found = child;
+		break;
+	}
+	lock_release(proc->wait_lock);
+
+	return found;
+}
+
+int proc_check_zombie(pid_t pid, int options, struct proc *proc)
+{
+	struct proc *child;
+	(void)options;
+
+	child = proc_get_child(pid, proc);
+
+	if (!child)
+		return ESRCH;
+
+	lock_acquire(child->wait_lock);
+	while (child->exit_state != PROC_ZOMBIE) {
+		cv_wait(child->wait_cv, child->wait_lock);
+	}
+	lock_release(child->wait_lock);
+
+	// TODO: move this
+    proc_destroy(child);
+
+	return 0;
+}
+
+
+/**
+ * Get the next greater pid.
+*/
+static inline pid_t alloc_pid(void) 
+{
+    pid_t pid;
+    
+    pid = list_last_entry(&kproc.procs, struct proc, procs)->pid;
+    pid += 1;
+
+    if (pid >= PID_MAX || pid < PID_MIN)
+        pid = PID_MIN;
+
+    return pid;
+}
+
+/**
+ * Insert a new proc
+*/
+static inline void insert_proc(struct proc *new)
+{
+	spinlock_acquire(&kproc.p_lock);
+	list_add_tail(&new->procs, &kproc.procs);
+	hash_add(proc_table, &new->pid_link, new->pid);
+	spinlock_release(&kproc.p_lock);
+}
+#endif // OPT_SYSCALLS
 
 /*
  * Create a proc structure.
@@ -78,6 +195,31 @@ proc_create(const char *name)
 		kfree(proc);
 		return NULL;
 	}
+
+#if OPT_SYSCALLS
+	/*
+	 * The new process is not running yet, this
+	 * is why there is a PROC_NEW state, the
+	 * caller will handle when the
+	 * process will need to run.
+	 */
+	proc->state = PROC_NEW;
+	proc->exit_state = PROC_NEW;
+
+	proc->pid = alloc_pid();
+	insert_proc(proc);
+
+	proc->parent = curproc;
+
+	proc->wait_cv = cv_create("wait_cv");
+	proc->wait_lock = lock_create("wait_lock");
+
+	INIT_LIST_HEAD(&proc->children);
+	INIT_LIST_HEAD(&proc->siblings);
+
+	add_children(proc, curproc);
+#endif // OPT_SYSCALLS
+
 
 	proc->p_numthreads = 0;
 	spinlock_init(&proc->p_lock);
@@ -184,7 +326,15 @@ proc_destroy(struct proc *proc)
 void
 proc_bootstrap(void)
 {
-    /* kproc is statically initialized */
+	/*
+	 * kproc is statically initialized
+	 * we only need to add it to PID table
+	 */
+
+	// TODO: make synch static
+	kproc.wait_cv = cv_create("wait_cv");
+	kproc.wait_lock = lock_create("wait_lock");
+	hash_add(proc_table, &kproc.pid_link, kproc.pid);
 }
 
 /*
