@@ -62,7 +62,6 @@ int sys_reboot(int code);
 int sys___time(userptr_t user_seconds, userptr_t user_nanoseconds);
 
 #if OPT_SYSCALLS
-
 /// @brief write `nbytes` of `buf` to the `fd` 
 /// @param fd file descriptor
 /// @param buf buffer to read from
@@ -79,6 +78,7 @@ extern pid_t sys_waitpid(pid_t pid, int *wstatus, int options);
 
 extern pid_t sys_getpid(void);
 
+extern int sys_fork(pid_t *pid, struct trapframe *tf);
 #endif // OPT_SYSCALLS
 
 #endif /* _SYSCALL_H_ */

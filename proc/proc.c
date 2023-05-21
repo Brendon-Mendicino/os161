@@ -75,7 +75,6 @@ struct proc kproc = {
 	.wait_lock        = NULL,
     .state            = PROC_RUNNING,
     .exit_state       = PROC_RUNNING,
-    .procs            = LIST_HEAD_INIT(kproc.procs),
     .children         = LIST_HEAD_INIT(kproc.children),
 	.siblings         = LIST_HEAD_INIT(kproc.siblings),
 	.parent           = NULL,
@@ -90,12 +89,18 @@ struct proc kproc = {
  */
 DEFINE_HASHTABLE(proc_table, 5);
 
+/*
+ * This value is locked by
+ * p_lock of kproc.
+ */
+static pid_t max_pid = 0;
+
 static inline
-void add_children(struct proc *new, struct proc *head)
+void add_new_child_proc(struct proc *new, struct proc *head)
 {
-	lock_acquire(head->wait_lock);
+	spinlock_acquire(&head->p_lock);
 	list_add_tail(&new->siblings, &head->children);
-	lock_release(head->wait_lock);
+	spinlock_release(&head->p_lock);
 }
 
 void proc_make_zombie(int exit_code, struct proc *proc)
@@ -113,7 +118,7 @@ proc_get_child(pid_t pid, struct proc *proc)
 	struct proc *found = NULL;
 	struct proc *child;
 
-	lock_acquire(proc->wait_lock);
+	spinlock_acquire(&kproc.p_lock);
 	hash_for_each_possible(proc_table, child, pid_link, pid) {
 		if (child->pid != pid || child->parent != proc)
 			continue;
@@ -121,12 +126,12 @@ proc_get_child(pid_t pid, struct proc *proc)
 		found = child;
 		break;
 	}
-	lock_release(proc->wait_lock);
+	spinlock_release(&kproc.p_lock);
 
 	return found;
 }
 
-int proc_check_zombie(pid_t pid, int options, struct proc *proc)
+int proc_check_zombie(pid_t pid, int *wstatus, int options, struct proc *proc)
 {
 	struct proc *child;
 	(void)options;
@@ -142,6 +147,12 @@ int proc_check_zombie(pid_t pid, int options, struct proc *proc)
 	}
 	lock_release(child->wait_lock);
 
+	if (wstatus)
+	{
+		*wstatus = _MKWVAL(child->exit_code);
+		*wstatus = _MKWAIT_EXIT(*wstatus);
+	}
+
 	// TODO: move this
     proc_destroy(child);
 
@@ -156,8 +167,10 @@ static inline pid_t alloc_pid(void)
 {
     pid_t pid;
     
-    pid = list_last_entry(&kproc.procs, struct proc, procs)->pid;
-    pid += 1;
+	spinlock_acquire(&kproc.p_lock);
+	max_pid += 1;
+	pid = max_pid;
+	spinlock_release(&kproc.p_lock);
 
     if (pid >= PID_MAX || pid < PID_MIN)
         pid = PID_MIN;
@@ -166,12 +179,12 @@ static inline pid_t alloc_pid(void)
 }
 
 /**
- * Insert a new proc
-*/
+ * Insert a new proc to the list of processes
+ * and to the PID table.
+ */
 static inline void insert_proc(struct proc *new)
 {
 	spinlock_acquire(&kproc.p_lock);
-	list_add_tail(&new->procs, &kproc.procs);
 	hash_add(proc_table, &new->pid_link, new->pid);
 	spinlock_release(&kproc.p_lock);
 }
@@ -205,9 +218,7 @@ proc_create(const char *name)
 	 */
 	proc->state = PROC_NEW;
 	proc->exit_state = PROC_NEW;
-
-	proc->pid = alloc_pid();
-	insert_proc(proc);
+	proc->exit_code = 0;
 
 	proc->parent = curproc;
 
@@ -216,10 +227,7 @@ proc_create(const char *name)
 
 	INIT_LIST_HEAD(&proc->children);
 	INIT_LIST_HEAD(&proc->siblings);
-
-	add_children(proc, curproc);
 #endif // OPT_SYSCALLS
-
 
 	proc->p_numthreads = 0;
 	spinlock_init(&proc->p_lock);
@@ -371,7 +379,56 @@ proc_create_runprogram(const char *name)
 	}
 	spinlock_release(&curproc->p_lock);
 
+#if OPT_SYSCALLS
+	newproc->pid = alloc_pid();
+	insert_proc(newproc);
+
+	add_new_child_proc(newproc, curproc);
+#endif // OPT_SYSCALLS
+
+
 	return newproc;
+}
+
+struct proc *
+proc_copy(void)
+{
+	struct proc *new_proc;
+	int err;
+
+	KASSERT(curproc != NULL);
+
+	new_proc = proc_create("proc_copy");
+	if (!new_proc)
+		goto fork_out;
+
+	new_proc->pid = alloc_pid();
+	insert_proc(new_proc);
+
+	add_new_child_proc(new_proc, curproc);
+
+	err = as_copy(curproc->p_addrspace, &new_proc->p_addrspace);
+	if (err)
+		goto bad_fork_cleanup_as;
+
+	/*
+	 * Lock the current process to copy its current directory.
+	 * (We don't need to lock the new process, though, as we have
+	 * the only reference to it.)
+	 */
+	spinlock_acquire(&curproc->p_lock);
+	if (curproc->p_cwd != NULL) {
+		VOP_INCREF(curproc->p_cwd);
+		new_proc->p_cwd = curproc->p_cwd;
+	}
+	spinlock_release(&curproc->p_lock);
+
+	return new_proc;
+
+bad_fork_cleanup_as:
+fork_out:
+	kfree(new_proc);
+	return NULL;
 }
 
 /*

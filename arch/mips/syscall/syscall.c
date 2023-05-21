@@ -32,6 +32,7 @@
 #include <kern/syscall.h>
 #include <lib.h>
 #include <mips/trapframe.h>
+#include <mips/specialreg.h>
 #include <thread.h>
 #include <current.h>
 #include <syscall.h>
@@ -139,6 +140,10 @@ void syscall(struct trapframe *tf)
 		sys__exit((int)tf->tf_a0);
 		panic("sys__exit returned\n");
 		break;
+
+	case SYS_fork:
+		err = sys_fork(&retval, tf);
+		break;
 #endif
 
 	default:
@@ -187,5 +192,24 @@ void syscall(struct trapframe *tf)
  */
 void enter_forked_process(struct trapframe *tf)
 {
-	(void)tf;
+	struct trapframe local;
+
+	/*
+	 * If the trapframe is not copyed to a
+	 * local varaible it will never be freed
+	 * cause memory leak.
+	 */
+	memmove(&local, tf, sizeof(struct trapframe));
+	kfree(tf);
+
+	local.tf_status = CST_IRQMASK | CST_IEp | CST_KUp;
+
+	/* Increase counter to avoid restarting the intrrupt */
+	local.tf_epc += 4;
+	/* pid_t return value */
+	local.tf_v0 = 0;
+	/* return success */
+	local.tf_a3 = 0;
+
+	mips_usermode(&local);
 }

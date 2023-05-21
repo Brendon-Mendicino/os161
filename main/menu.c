@@ -136,7 +136,9 @@ common_prog(int nargs, char **args)
 	}
 
 #if OPT_SYSCALLS
-	sys_waitpid(proc->pid, NULL, 0);
+	int exit_code = 0;
+	sys_waitpid(proc->pid, &exit_code, 0);
+	kprintf("Exit status: %d\n", exit_code);
 #endif // OPT_SYSCALLS
 
 	/*

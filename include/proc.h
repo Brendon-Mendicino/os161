@@ -89,7 +89,6 @@ struct proc {
 	unsigned int exit_state;
 	int exit_code;
 
-	struct list_head procs;
 	struct list_head children;
 	struct list_head siblings;
 
@@ -109,7 +108,9 @@ extern struct proc kproc;
 #if OPT_SYSCALLS
 extern void proc_make_zombie(int exit_code, struct proc *proc);
 
-extern int proc_check_zombie(pid_t pid, int options, struct proc *proc);
+extern int proc_check_zombie(pid_t pid, int *wstatus, int options, struct proc *proc);
+
+extern struct proc *proc_copy(void);
 #endif
 
 /* Call once during system startup to allocate data structures. */

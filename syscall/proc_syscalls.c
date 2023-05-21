@@ -12,8 +12,6 @@ void sys__exit(int status)
 {
     struct proc *proc = curproc;
     
-    kprintf("Exit status: %d\n", status);
-
     // TODO: when this proc exits and has children
     // attach them to the init process, that will
     // periodically check for new children to clear
@@ -39,10 +37,10 @@ pid_t sys_waitpid(pid_t pid, int *wstatus, int options)
 {
     pid_t result;
 
-    if (options != 0 || wstatus != NULL)
+    if (options != 0)
         panic("sys_waitpid: options|wstatus not implemented yet\n");
 
-    result = proc_check_zombie(pid, options, curproc);
+    result = proc_check_zombie(pid, wstatus, options, curproc);
 
     return result;
 }
