@@ -458,10 +458,35 @@ as_define_stack(struct addrspace *as, vaddr_t *stackptr)
 	return 0;
 }
 
+static void
+as_bad_prepare_load(struct addrspace *as)
+{
+	dumbvm_can_sleep();
+
+	KASSERT(as != NULL);
+
+#if OPT_ALLOCATOR
+	/* TODO: modifi in the future */
+	spinlock_acquire(&mem_lock);
+	if (as->as_pbase1 != 0)
+		atable_freeppages(atable, as->as_pbase1);
+
+	if (as->as_stackpabase != 0)
+		atable_freeppages(atable, as->as_stackpbase);
+
+	if (as->as_npages2 > 0)
+		atable_freeppages(atable, as->as_pbase2);
+	spinlock_release(&mem_lock);
+#endif // OPT_ALLOCATOR
+
+	kfree(as);
+}
+
 int
 as_copy(struct addrspace *old, struct addrspace **ret)
 {
 	struct addrspace *new;
+	int retval;
 
 	dumbvm_can_sleep();
 
@@ -476,8 +501,14 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 	new->as_npages2 = old->as_npages2;
 
 	/* (Mis)use as_prepare_load to allocate some physical memory. */
-	if (as_prepare_load(new)) {
-		as_destroy(new);
+	retval = as_prepare_load(new);
+	if (retval) {
+		/* 
+		 * we cant use as_destroy because its
+		 * not knows if the pbase where allocated
+		 * correctly.
+		 */
+		as_bad_prepare_load(new);
 		return ENOMEM;
 	}
 
