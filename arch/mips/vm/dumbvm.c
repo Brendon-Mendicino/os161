@@ -471,7 +471,7 @@ as_bad_prepare_load(struct addrspace *as)
 	if (as->as_pbase1 != 0)
 		atable_freeppages(atable, as->as_pbase1);
 
-	if (as->as_stackpabase != 0)
+	if (as->as_stackpbase != 0)
 		atable_freeppages(atable, as->as_stackpbase);
 
 	if (as->as_npages2 > 0)

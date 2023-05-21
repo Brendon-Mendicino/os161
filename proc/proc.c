@@ -159,6 +159,12 @@ int proc_check_zombie(pid_t pid, int *wstatus, int options, struct proc *proc)
 	return 0;
 }
 
+static inline void free_pid(struct proc *proc)
+{
+	spinlock_acquire(&kproc.p_lock);
+	hash_del(&proc->pid_link);
+	spinlock_release(&kproc.p_lock);
+}
 
 /**
  * Get the next greater pid.
@@ -200,16 +206,22 @@ proc_create(const char *name)
 	struct proc *proc;
 
 	proc = kmalloc(sizeof(*proc));
-	if (proc == NULL) {
+	if (proc == NULL)
 		return NULL;
-	}
+
 	proc->p_name = kstrdup(name);
-	if (proc->p_name == NULL) {
-		kfree(proc);
-		return NULL;
-	}
+	if (proc->p_name == NULL)
+		goto create_out;
 
 #if OPT_SYSCALLS
+	proc->wait_cv = cv_create("wait_cv");
+	if (!proc->wait_cv)
+		goto bad_create_cleanup_name;
+
+	proc->wait_lock = lock_create("wait_lock");
+	if (!proc->wait_lock)
+		goto bad_create_cleanup_cv;
+
 	/*
 	 * The new process is not running yet, this
 	 * is why there is a PROC_NEW state, the
@@ -221,9 +233,6 @@ proc_create(const char *name)
 	proc->exit_code = 0;
 
 	proc->parent = curproc;
-
-	proc->wait_cv = cv_create("wait_cv");
-	proc->wait_lock = lock_create("wait_lock");
 
 	INIT_LIST_HEAD(&proc->children);
 	INIT_LIST_HEAD(&proc->siblings);
@@ -239,6 +248,16 @@ proc_create(const char *name)
 	proc->p_cwd = NULL;
 
 	return proc;
+
+#if OPT_SYSCALLS
+bad_create_cleanup_cv:
+	kfree(proc->wait_cv);
+#endif // OPT_SYSCALLS
+bad_create_cleanup_name:
+	kfree(proc->p_name);
+create_out:
+	kfree(proc);
+	return NULL;
 }
 
 /*
