@@ -46,21 +46,23 @@ atable_create(void)
     size_t npages;
     size_t tsize;
     paddr_t ram_size;
+    paddr_t ram_free_size;
     paddr_t first_available;
     size_t ram_free_space;
 
-    first_available = ram_stealmem(1);
+    ram_size = ram_getsize();
+    first_available = ram_getfirstfree();
     KASSERT(first_available != 0);
 
-    ram_size = ram_getsize() - first_available;
+    ram_free_size = ram_size - first_available;
 
     tsize = sizeof(struct atable);
     // Calculate the space that the bitmap and the alloc_space take
-    // ram_size = x + a + x/(p * CHAR_BIT) + x*sizeof(ALLOC_TYPE)/p
+    // ram_free_size = x + a + x/(p * CHAR_BIT) + x*sizeof(ALLOC_TYPE)/p
     // x = ram_free_space
     // p = PAGE_SIZE
     // a = sizeof(struct atable)
-    ram_free_space = (size_t)(ram_size - tsize) / (1 + CHAR_BIT * PAGE_SIZE + CHAR_BIT * sizeof(ALLOC_TYPE));
+    ram_free_space = (size_t)(ram_free_size - tsize) / (1 + CHAR_BIT * PAGE_SIZE + CHAR_BIT * sizeof(ALLOC_TYPE));
     ram_free_space *= PAGE_SIZE * CHAR_BIT;
 
     // checkt he size of "atable + bitmap + alloc_space + alignment padding" in pages
@@ -68,9 +70,11 @@ atable_create(void)
     ram_free_space -= npages * PAGE_SIZE;
 
     // check if the data fits in the ram
-    nbits = ram_free_space * BITS_PER_WORD / (PAGE_SIZE);
+    nbits = ram_free_space / (PAGE_SIZE);
     words = DIVROUNDUP(nbits, BITS_PER_WORD);
-    KASSERT(sizeof(struct atable) + words + words * sizeof(ALLOC_TYPE) + 3 * ALIGN_BYTE + ram_free_space <= ram_getsize());
+    KASSERT(sizeof(struct atable) + words + words * sizeof(ALLOC_TYPE) + 3 * ALIGN_BYTE + ram_free_space <= ram_size);
+
+    KASSERT(nbits * PAGE_SIZE <= ram_free_space);
 
     table = (struct atable *)PADDR_TO_KVADDR(first_available);
 
