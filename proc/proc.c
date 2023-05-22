@@ -198,6 +198,9 @@ static inline void insert_proc(struct proc *new)
 
 /*
  * Create a proc structure.
+ * This function only initialized the
+ * fields, the remainings configuration
+ * needs to be the caller.
  */
 static
 struct proc *
@@ -343,6 +346,9 @@ proc_destroy(struct proc *proc)
 	KASSERT(proc->p_numthreads == 0);
 	spinlock_cleanup(&proc->p_lock);
 
+	cv_destroy(proc->wait_cv);
+	lock_destroy(proc->wait_lock);
+
 	kfree(proc->p_name);
 	kfree(proc);
 }
@@ -409,9 +415,13 @@ proc_create_runprogram(const char *name)
 	return newproc;
 }
 
+/*
+ * Actual fork implementation.
+ */
 struct proc *
 proc_copy(void)
 {
+	// TODO: use ERRPTR
 	struct proc *new_proc;
 	int err;
 
@@ -419,16 +429,19 @@ proc_copy(void)
 
 	new_proc = proc_create("proc_copy");
 	if (!new_proc)
+		return NULL;
+
+	err = as_copy(curproc->p_addrspace, &new_proc->p_addrspace);
+	if (err)
 		goto fork_out;
 
+	new_proc->parent = curproc;
+
+	// TODO: fix this
 	new_proc->pid = alloc_pid();
 	insert_proc(new_proc);
 
 	add_new_child_proc(new_proc, curproc);
-
-	err = as_copy(curproc->p_addrspace, &new_proc->p_addrspace);
-	if (err)
-		goto bad_fork_cleanup_as;
 
 	/*
 	 * Lock the current process to copy its current directory.
@@ -444,7 +457,6 @@ proc_copy(void)
 
 	return new_proc;
 
-bad_fork_cleanup_as:
 fork_out:
 	kfree(new_proc);
 	return NULL;
