@@ -38,5 +38,4 @@ options syscalls        # Enable new syscalls
 options allocator       # Enable allocator
 
 options lock            # Enable locks
-# depend on: lock
 options cv              # Enable condition variables
