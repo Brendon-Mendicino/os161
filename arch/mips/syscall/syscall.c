@@ -197,12 +197,10 @@ void enter_forked_process(struct trapframe *tf)
 	/*
 	 * If the trapframe is not copyed to a
 	 * local varaible it will never be freed
-	 * cause memory leak.
+	 * causing a memory leak.
 	 */
-	memmove(&local, tf, sizeof(struct trapframe));
+	memcpy(&local, tf, sizeof(struct trapframe));
 	kfree(tf);
-
-	local.tf_status = CST_IRQMASK | CST_IEp | CST_KUp;
 
 	/* Increase counter to avoid restarting the intrrupt */
 	local.tf_epc += 4;
@@ -212,4 +210,5 @@ void enter_forked_process(struct trapframe *tf)
 	local.tf_a3 = 0;
 
 	mips_usermode(&local);
+	panic("returned from mips_usermode!\n");
 }

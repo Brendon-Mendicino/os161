@@ -344,7 +344,12 @@ mips_trap(struct trapframe *tf)
 	 * kernel will (most likely) hang the system, so it's better
 	 * to find out now.
 	 */
-	KASSERT(SAME_STACK(cpustacks[curcpu->c_number]-1, (vaddr_t)tf));
+
+	/* previous buggy version */
+	// KASSERT(SAME_STACK(cpustacks[curcpu->c_number]-1, (vaddr_t)tf));
+	/* new version */
+	KASSERT(((vaddr_t)tf) >= ((vaddr_t)curthread->t_stack)); 
+	KASSERT(((vaddr_t)tf) < ((vaddr_t)curthread->t_stack+STACK_SIZE));
 }
 
 /*
@@ -395,7 +400,12 @@ mips_usermode(struct trapframe *tf)
 	 * either another thread's stack or in the kernel heap.
 	 * (Exercise: why?)
 	 */
-	KASSERT(SAME_STACK(cpustacks[curcpu->c_number]-1, (vaddr_t)tf));
+
+	/* old version */
+	// KASSERT(SAME_STACK(cpustacks[curcpu->c_number]-1, (vaddr_t)tf));
+	/* new verstion */
+	KASSERT(((vaddr_t)tf) >= ((vaddr_t)curthread->t_stack)); 
+	KASSERT(((vaddr_t)tf) < ((vaddr_t)curthread->t_stack+STACK_SIZE));
 
 	/*
 	 * This actually does it. See exception-*.S.
