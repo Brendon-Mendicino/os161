@@ -89,6 +89,10 @@ struct proc {
 	unsigned int exit_state;
 	int exit_code;
 
+	/* 
+	 * childred are parent property
+	 * they should be locked with parent->p_lock
+	 */
 	struct list_head children;
 	struct list_head siblings;
 

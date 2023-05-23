@@ -95,6 +95,22 @@ DEFINE_HASHTABLE(proc_table, 5);
  */
 static pid_t max_pid = 0;
 
+/*
+ * Removes a child from the children
+ * list of the parent, the list is locked
+ * with the parent p_lock.
+ */
+static inline
+void del_child_proc(struct proc *child)
+{
+	KASSERT(child != NULL);
+	KASSERT(child->parent != NULL);
+
+	spinlock_acquire(&child->parent->p_lock);
+	list_del(&child->siblings);
+	spinlock_release(&child->parent->p_lock);
+}
+
 static inline
 void add_new_child_proc(struct proc *new, struct proc *head)
 {
@@ -348,6 +364,11 @@ proc_destroy(struct proc *proc)
 
 	cv_destroy(proc->wait_cv);
 	lock_destroy(proc->wait_lock);
+
+	/* remove from proc_table */
+	free_pid(proc);
+
+	del_child_proc(proc);
 
 	kfree(proc->p_name);
 	kfree(proc);
