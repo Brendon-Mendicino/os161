@@ -11,6 +11,8 @@
                 "${env:HOME}/os161/src/kern/compile/SYSCALLS/includelinks",
                 "${env:HOME}/os161/src/kern/compile/ALLOCATOR",
                 "${env:HOME}/os161/src/kern/compile/ALLOCATOR/includelinks",
+                "${env:HOME}/os161/src/kern/compile/PAGING",
+                "${env:HOME}/os161/src/kern/compile/PAGING/includelinks",
                 "${env:HOME}/os161/src/kern/dev/generic",
                 "${env:HOME}/os161/src/kern/dev/lamebus",
                 "${env:HOME}/os161/src/kern/dev",
