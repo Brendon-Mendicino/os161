@@ -196,13 +196,9 @@ void lock_acquire(struct lock *lock)
 #if OPT_LOCK
     /* Call this (atomically) before waiting for a lock */
     spinlock_acquire(&lock->lk_lock);
-    if (CURCPU_EXISTS())
-    {
+    if (CURCPU_EXISTS()) {
         HANGMAN_WAIT(&curthread->t_hangman, &lock->lk_hangman);
     }
-    spinlock_release(&lock->lk_lock);
-
-    spinlock_acquire(&lock->lk_lock);
 
     while (lock->locked == true)
     {
@@ -220,12 +216,8 @@ void lock_acquire(struct lock *lock)
     KASSERT(lock->lk_owner == NULL);
     lock->lk_owner = curthread;
 
-    spinlock_release(&lock->lk_lock);
-
     /* Call this (atomically) once the lock is acquired */
-    spinlock_acquire(&lock->lk_lock);
-    if (CURCPU_EXISTS())
-    {
+    if (CURCPU_EXISTS()) {
         HANGMAN_ACQUIRE(&curthread->t_hangman, &lock->lk_hangman);
     }
     spinlock_release(&lock->lk_lock);
@@ -242,19 +234,15 @@ void lock_release(struct lock *lock)
     KASSERT(lock_do_i_hold(lock));
 
     spinlock_acquire(&lock->lk_lock);
+    /* Call this (atomically) when the lock is released */
+    if (CURCPU_EXISTS()) {
+        HANGMAN_RELEASE(&curthread->t_hangman, &lock->lk_hangman);
+    }
 
     lock->lk_owner = NULL;
     lock->locked = false;
     wchan_wakeone(lock->lk_wchan, &lock->lk_lock);
 
-    spinlock_release(&lock->lk_lock);
-
-    /* Call this (atomically) when the lock is released */
-    spinlock_acquire(&lock->lk_lock);
-    if (CURCPU_EXISTS())
-    {
-        HANGMAN_RELEASE(&curthread->t_hangman, &lock->lk_hangman);
-    }
     spinlock_release(&lock->lk_lock);
 #else
     (void)lock;

@@ -44,6 +44,7 @@
 #include <syscall.h>
 #include <vm.h>
 #include <test.h>
+#include <current.h>
 #include "opt-sfs.h"
 #include "opt-net.h"
 #include "opt-syscalls.h"
@@ -94,6 +95,10 @@ cmd_progthread(void *ptr, unsigned long nargs)
 	if (result) {
 		kprintf("Running program %s failed: %s\n", args[0],
 			strerror(result));
+
+#ifdef OPT_SYSCALLS
+		proc_make_zombie(1, curproc);
+#endif
 		return;
 	}
 
@@ -137,8 +142,10 @@ common_prog(int nargs, char **args)
 
 #if OPT_SYSCALLS
 	int exit_code = 0;
-	sys_waitpid(proc->pid, &exit_code, 0);
-	kprintf("Exit status: %d\n", exit_code);
+	if (proc->pid != -1) {
+		sys_waitpid(proc->pid, &exit_code, 0);
+		kprintf("Exit status: %d\n", exit_code);
+	}
 #endif // OPT_SYSCALLS
 
 	/*

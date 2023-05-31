@@ -84,6 +84,12 @@ struct proc {
 	struct cv *wait_cv;
 	/* waitpid lock */
 	struct lock *wait_lock;
+	/*
+	 * Used after the the proc becomes zombie,
+	 * if it doesn't call this the proces
+	 * may be free to early by sys_waitpid
+	 */
+	struct semaphore *wait_sem;
 
 	unsigned int state;
 	unsigned int exit_state;

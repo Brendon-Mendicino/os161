@@ -73,6 +73,7 @@ struct proc kproc = {
 #if OPT_SYSCALLS   
 	.wait_cv          = NULL,
 	.wait_lock        = NULL,
+	.wait_sem         = NULL,
     .state            = PROC_RUNNING,
     .exit_state       = PROC_RUNNING,
     .children         = LIST_HEAD_INIT(kproc.children),
@@ -126,6 +127,8 @@ void proc_make_zombie(int exit_code, struct proc *proc)
 	proc->exit_code = exit_code;
 	cv_broadcast(proc->wait_cv, proc->wait_lock);
 	lock_release(proc->wait_lock);
+
+	V(proc->wait_sem);
 }
 
 static struct proc *
@@ -162,6 +165,8 @@ int proc_check_zombie(pid_t pid, int *wstatus, int options, struct proc *proc)
 		cv_wait(child->wait_cv, child->wait_lock);
 	}
 	lock_release(child->wait_lock);
+
+	P(child->wait_sem);
 
 	if (wstatus)
 	{
@@ -241,6 +246,10 @@ proc_create(const char *name)
 	if (!proc->wait_lock)
 		goto bad_create_cleanup_cv;
 
+	proc->wait_sem = sem_create("wait_sem", 0);
+	if (!proc->wait_sem)
+		goto bad_create_cleanup_lock;
+
 	/*
 	 * The new process is not running yet, this
 	 * is why there is a PROC_NEW state, the
@@ -269,8 +278,10 @@ proc_create(const char *name)
 	return proc;
 
 #if OPT_SYSCALLS
+bad_create_cleanup_lock:
+	lock_destroy(proc->wait_lock);
 bad_create_cleanup_cv:
-	kfree(proc->wait_cv);
+	cv_destroy(proc->wait_cv);
 #endif // OPT_SYSCALLS
 bad_create_cleanup_name:
 	kfree(proc->p_name);
@@ -362,13 +373,16 @@ proc_destroy(struct proc *proc)
 	KASSERT(proc->p_numthreads == 0);
 	spinlock_cleanup(&proc->p_lock);
 
+#ifdef OPT_SYSCALLS
 	cv_destroy(proc->wait_cv);
 	lock_destroy(proc->wait_lock);
+	sem_destroy(proc->wait_sem);
 
 	/* remove from proc_table */
 	free_pid(proc);
 
 	del_child_proc(proc);
+#endif // OPT_SYSCALLS
 
 	kfree(proc->p_name);
 	kfree(proc);
@@ -385,10 +399,13 @@ proc_bootstrap(void)
 	 * we only need to add it to PID table
 	 */
 
+#ifdef OPT_SYSCALLS
 	// TODO: make synch static
 	kproc.wait_cv = cv_create("wait_cv");
 	kproc.wait_lock = lock_create("wait_lock");
+	kproc.wait_sem = sem_create("wait_sem", 0);
 	hash_add(proc_table, &kproc.pid_link, kproc.pid);
+#endif // OPT_SYSCALLS
 }
 
 /*
@@ -442,7 +459,6 @@ proc_create_runprogram(const char *name)
 struct proc *
 proc_copy(void)
 {
-	// TODO: use ERRPTR
 	struct proc *new_proc;
 	int err;
 
@@ -456,6 +472,7 @@ proc_copy(void)
 	if (err)
 		goto fork_out;
 
+#ifdef OPT_SYSCALLS
 	new_proc->parent = curproc;
 
 	// TODO: fix this
@@ -463,6 +480,7 @@ proc_copy(void)
 	insert_proc(new_proc);
 
 	add_new_child_proc(new_proc, curproc);
+#endif // OPT_SYSCALLS
 
 	/*
 	 * Lock the current process to copy its current directory.
