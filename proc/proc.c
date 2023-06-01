@@ -373,7 +373,7 @@ proc_destroy(struct proc *proc)
 	KASSERT(proc->p_numthreads == 0);
 	spinlock_cleanup(&proc->p_lock);
 
-#ifdef OPT_SYSCALLS
+#if OPT_SYSCALLS
 	cv_destroy(proc->wait_cv);
 	lock_destroy(proc->wait_lock);
 	sem_destroy(proc->wait_sem);
@@ -399,7 +399,7 @@ proc_bootstrap(void)
 	 * we only need to add it to PID table
 	 */
 
-#ifdef OPT_SYSCALLS
+#if OPT_SYSCALLS
 	// TODO: make synch static
 	kproc.wait_cv = cv_create("wait_cv");
 	kproc.wait_lock = lock_create("wait_lock");
@@ -472,7 +472,7 @@ proc_copy(void)
 	if (err)
 		goto fork_out;
 
-#ifdef OPT_SYSCALLS
+#if OPT_SYSCALLS
 	new_proc->parent = curproc;
 
 	// TODO: fix this
@@ -598,3 +598,20 @@ proc_setas(struct addrspace *newas)
 	spinlock_release(&proc->p_lock);
 	return oldas;
 }
+
+#if OPT_SYSFS
+int proc_add_new_file(struct proc *proc, struct file *file)
+{
+	int fd;
+
+	spinlock_acquire(&proc->p_lock);
+
+	fd = file_next_fd(&proc->ftable);
+	file->fd = fd;
+	file_table_add(file, &proc->ftable);
+
+	spinlock_release(&proc->p_lock);
+
+	return fd;
+}
+#endif // OPT_SYSFS

@@ -114,21 +114,23 @@ void syscall(struct trapframe *tf)
 #if OPT_SYSCALLS
 	case SYS_write:
 		err = sys_write((int)tf->tf_a0,
-						(const void *)tf->tf_a1,
-						(size_t)tf->tf_a2);
+						(const_userptr_t)tf->tf_a1,
+						(size_t)tf->tf_a2,
+						&retval);
 		break;
 
 	case SYS_read:
 		err = sys_read((int)tf->tf_a0,
-						(const void *)tf->tf_a1,
-						(size_t)tf->tf_a2);
+						(const_userptr_t)tf->tf_a1,
+						(size_t)tf->tf_a2,
+						&retval);
 		break;
 
 	case SYS_waitpid:
-		retval = sys_waitpid((pid_t)tf->tf_a0,
-							(int *)tf->tf_a1,
-							(int)tf->tf_a2);
-		err = (retval == -1) ? -1 : 0;
+		err = sys_waitpid((pid_t)tf->tf_a0,
+							(userptr_t)tf->tf_a1,
+							(int)tf->tf_a2,
+							(pid_t *)&retval);
 		break;
 
 	case SYS_getpid:

@@ -96,7 +96,7 @@ cmd_progthread(void *ptr, unsigned long nargs)
 		kprintf("Running program %s failed: %s\n", args[0],
 			strerror(result));
 
-#ifdef OPT_SYSCALLS
+#if OPT_SYSCALLS
 		proc_make_zombie(1, curproc);
 #endif
 		return;
@@ -142,9 +142,10 @@ common_prog(int nargs, char **args)
 
 #if OPT_SYSCALLS
 	int exit_code = 0;
+	pid_t exit_pid;
 	if (proc->pid != -1) {
-		sys_waitpid(proc->pid, &exit_code, 0);
-		kprintf("Exit status: %d\n", exit_code);
+		sys_waitpid(proc->pid, &exit_code, 0, &exit_pid);
+		kprintf("Exit status: %d, exit pid: %d\n", exit_code, exit_pid);
 	}
 #endif // OPT_SYSCALLS
 

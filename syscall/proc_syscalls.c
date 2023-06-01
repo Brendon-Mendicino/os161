@@ -33,14 +33,19 @@ void sys__exit(int status)
     panic("returned from thread_exit");
 }
 
-pid_t sys_waitpid(pid_t pid, int *wstatus, int options)
+int sys_waitpid(pid_t pid, userptr_t wstatus, int options, pid_t *exit_pid)
 {
     pid_t result;
+
+    KASSERT(exit_pid != NULL);
 
     if (options != 0)
         panic("sys_waitpid: options|wstatus not implemented yet\n");
 
-    result = proc_check_zombie(pid, wstatus, options, curproc);
+    result = proc_check_zombie(pid, (int *)wstatus, options, curproc);
+
+    // TODO: cambiare
+    *exit_pid = pid;
 
     return result;
 }

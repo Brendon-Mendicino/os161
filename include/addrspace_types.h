@@ -31,8 +31,13 @@ struct addrspace {
         size_t asp_npages2;
         vaddr_t asp_stackpbase;
         size_t asp_nstackpages;
+
+        /* points to a Page Miggle Diretory Table */
         pmd_t *pmd;
-        /* Put stuff here for your VM system */
+
+        vaddr_t start_code, end_code;
+        vaddr_t start_data, end_data;
+        vaddr_t start_stack, end_stack;
 #endif
 };
 

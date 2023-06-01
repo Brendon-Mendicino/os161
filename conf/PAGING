@@ -40,4 +40,6 @@ options allocator       # Enable allocator
 options lock            # Enable locks
 options cv              # Enable condition variables
 
+options sysfs           # Enable file related system calls
+
 options paging          # Enable paging in the system

@@ -2,6 +2,7 @@
 #define _ASM_PT_H_
 
 #include <types.h>
+#include <lib.h>
 #include <machine/vm.h>
 
 
@@ -41,8 +42,11 @@ typedef struct pte {
  */
 #define PTE_SHIFT  (PAGE_SHIFT)
 #define PTRS_PER_PTE (PAGE_SIZE / sizeof(pte_t))
-#define PTE_MASK (~(PTRS_PER_PTE - 1))
+#define PTE_INDEX_MASK (~(PTRS_PER_PTE - 1))
 #define PTE_FLAGS_MASK ((1 << PAGE_SHIFT) - 1)
+
+#define PTE_ADDR_SIZE (1 << PTE_SHIFT)
+#define PTE_ADDR_MASK (~(PTE_ADDR_SIZE - 1))
 
 /*
  * PMD_SHIFT determines the area that the first-level
@@ -52,6 +56,9 @@ typedef struct pte {
 #define PTRS_PER_PMD (PAGE_SIZE / sizeof(pmd_t))
 #define PMD_MASK (~(PTRS_PER_PMD - 1))
 #define PMD_FLAGS_MASK ((1 << PAGE_SHIFT) - 1)
+
+#define PMD_ADDR_SIZE  (1 << PMD_SHIFT)
+#define PMD_ADDR_MASK  (~(PMD_ADDR_SIZE - 1))
 
 
 /**
@@ -84,12 +91,17 @@ static inline pteval_t pte_value(pte_t pte)
  */
 static inline size_t pte_index(vaddr_t addr)
 {
-    return (size_t)((addr >> PTE_SHIFT) & PTE_MASK);
+    return (size_t)((addr >> PTE_SHIFT) & PTE_INDEX_MASK);
 }
 
 static inline size_t pte_present(pte_t pte)
 {
     return pte_flags(pte) & PAGE_PRESENT;
+}
+
+static inline void pte_clean_table(pte_t *pte)
+{
+    bzero((void *)pte, sizeof(pte_t) * PTRS_PER_PTE);
 }
 
 
@@ -144,6 +156,11 @@ static inline size_t pmd_present(pmd_t pmd)
 static inline pte_t *pmd_ptetable(pmd_t pmd)
 {
     return (pte_t *)pmd_value(pmd);
+}
+
+static inline void pmd_clean_table(pmd_t *pmd)
+{
+    bzero((void *)pmd, sizeof(pmd_t) * PTRS_PER_PMD);
 }
 
 

@@ -34,6 +34,7 @@
 #include <vm.h>
 #include <proc.h>
 #include <spl.h>
+#include <pt.h>
 #include <machine/tlb.h>
 
 /*
@@ -63,6 +64,10 @@ as_create(void)
 	as->asp_npages2 = 0;
 	as->asp_stackpbase = 0;
 	as->asp_nstackpages = AS_STACKPAGES;
+
+	as->pmd = pmd_create_table();
+	if (!as->pmd)
+		return NULL;
 
 	return as;
 }

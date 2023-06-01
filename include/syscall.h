@@ -32,6 +32,7 @@
 
 #include <types.h>
 #include "opt-syscalls.h"
+#include "opt-sysfs.h"
 
 #include <cdefs.h> /* for __DEAD */
 struct trapframe; /* from <machine/trapframe.h> */
@@ -62,23 +63,23 @@ int sys_reboot(int code);
 int sys___time(userptr_t user_seconds, userptr_t user_nanoseconds);
 
 #if OPT_SYSCALLS
-/// @brief write `nbytes` of `buf` to the `fd` 
-/// @param fd file descriptor
-/// @param buf buffer to read from
-/// @param nbytes number of bytes to write
-/// @return returns number of bytes wrote to the file descriptor,
-/// 	-1 if any error accurred
-ssize_t sys_write(int fd, const void *buf, size_t nbyte);
+int sys_write(int fd, const_userptr_t buf, size_t nbyte, size_t *size_wrote);
 
-ssize_t sys_read(int fd, const void *buf, size_t nbyte);
+int sys_read(int fd, const_userptr_t buf, size_t nbyte, size_t *size_read);
 
 extern void sys__exit(int status);
 
-extern pid_t sys_waitpid(pid_t pid, int *wstatus, int options);
+extern int sys_waitpid(pid_t pid, userptr_t wstatus, int options, pid_t *exit_pid);
 
 extern pid_t sys_getpid(void);
 
 extern int sys_fork(pid_t *pid, struct trapframe *tf);
 #endif // OPT_SYSCALLS
+
+#if OPT_SYSFS
+extern int sys_open(const_userptr_t pathname, int flags, mode_t mode, int *fd);
+
+extern int sys_close(int fd);
+#endif // OPT_SYSFS
 
 #endif /* _SYSCALL_H_ */

@@ -2,9 +2,23 @@
 
 ## TLB Support
 
-TLB avra' il supporto per la gestione dell'_address space_ a cui appartiene,
-questo verra' ottenuto abilitando il supporto per il campo `ASID` (Address
-Space ID), all'interno della parte `EntryHi` con i bit da 0 a 7 della TLB.
+Ogni volta che avviene un context switch c'e' uno svuotamento delle TLB,
+infatti in OS161 non esiste il supporto per il campo ASID all'interno della
+`EntryHi`, ogni volta che avviene un fault nella TLB vengono possono essere per
+diverse casistiche
+- le entry non esiste
+- si tenta di scrivere su una entry che ha il ha campo D settato a falso
+- si tenta di leggere o scirvere una pagina non valida
+
+### Entry non esiste
+
+Se la entry non esiste nella tabella si va a cercare l'indirizzo fisico nella
+Page Table del rispettivo processo, si prende il valore dal PFN 
+(*Page Frame Number*) da `pte_t` e si inserisce all'interno della TLB, se la 
+pagina non esiste all'interno della Page Table viene caricato dal disco alla
+memoria attraverso On-Demand Page Loading.
+
+### ...
 
 ## On-Demand Page Loading
 
@@ -29,12 +43,12 @@ che dovranno essere contigue
   |                       |                               
   pmd_offset              pte_offset                               
   |   pmd                 |   pte                         
-  |   +-------+           |   +-------+                            
-  |   |       |           |   |       |                            
-  |   |-------|           |   |-------|                            
-  |   |       |           |   |       |                            
-  |   |-------|           |   |-------|                            
-  |   |       |           \-->|       |                            
+  |   +-------+           |   +-------+     page                       
+  |   |       |           |   |       |     +-------+                       
+  |   |-------|           |   |-------|     |       |                       
+  |   |       |           |   |       |     |       |                       
+  |   |-------|           |   |-------|     |       |                       
+  |   |       |           \-->|       |---->+-------+                           
   |   |-------|               |-------|                            
   |   |pte_t *|-----\         |       |                            
   \-->|-------|     |         |-------|                            
@@ -44,3 +58,5 @@ che dovranno essere contigue
   |                                                            
 pmd_t *
 ```
+
+La `struct proc` avra' un campo `pmd_t *pmt` che punta al primo livello della tabella.

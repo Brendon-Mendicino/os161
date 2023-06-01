@@ -39,6 +39,8 @@
         "trapframe.h": "c",
         "err.h": "c",
         "compiler_attributes.h": "c",
+        "refcount.h": "c",
+        "pt.h": "c",
         "exception": "c",
         "memory_resource": "c",
         "fstream": "c",
@@ -46,6 +48,10 @@
         "new": "c",
         "ostream": "c",
         "sstream": "c",
-        "streambuf": "c"
+        "streambuf": "c",
+        "spl.h": "c",
+        "atomic": "cpp",
+        "vfs.h": "c",
+        "file.h": "c"
     }
 }

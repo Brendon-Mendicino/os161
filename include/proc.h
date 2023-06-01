@@ -40,7 +40,9 @@
 #include <types.h>
 #include <limits.h>
 #include <synch.h>
+#include <file.h>
 #include "opt-syscalls.h"
+#include "opt-sysfs.h"
 
 typedef enum {
 	PROC_NEW,
@@ -110,6 +112,10 @@ struct proc {
 	/* PID hash table linkage */
 	struct hlist_node pid_link;
 #endif // OPT_SYSCALLS
+
+#ifdef OPT_SYSFS
+	struct file_table ftable;   	/* open file table*/
+#endif // OPT_SYSFS
 };
 
 /* This is the process structure for the kernel and for kernel-only threads. */
@@ -144,5 +150,8 @@ struct addrspace *proc_getas(void);
 /* Change the address space of the current process, and return the old one. */
 struct addrspace *proc_setas(struct addrspace *);
 
+#ifdef OPT_SYSFS
+extern int proc_add_new_file(struct proc *proc, struct file *file);
+#endif // OPT_SYSFS
 
 #endif /* _PROC_H_ */

@@ -37,4 +37,18 @@ static inline pmd_t *pmd_offset(struct addrspace *as, vaddr_t addr)
 
 
 
+/*
+ * Creates a PTE table and initialize all entry to invalid
+ */
+extern pte_t *pte_create_table(void);
+
+/*
+ * Creates a PMD table and initialize all entry to invalid
+ */
+extern pmd_t *pmd_create_table(void);
+
+
+extern int pmd_create_range(struct addrspace *as, vaddr_t addr, size_t size);
+
+
 #endif // _PT_H_
