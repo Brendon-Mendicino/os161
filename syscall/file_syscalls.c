@@ -52,21 +52,16 @@ int sys_write(int fd, const_userptr_t buf, size_t nbyte, size_t *size_wrote)
 
     return 0;
 #else // OPT_SYSFS
-    size_t wrote_bytes = 0;
-
     if (fd != STDOUT_FILENO && fd != STDERR_FILENO)
     {
         kprintf("Error: writing to a file!\n");
-        return EACCES;
+        return ENOSYS;
     }
 
     for (size_t i = 0; i < nbyte; i++)
-    {
         putch(((uint8_t *)buf)[i]);
-        wrote_bytes++;
-    }
 
-    *size_wrote = wrote_bytes;
+    *size_wrote = nbyte;
 
     return 0;
 #endif // OPT_SYSFS
@@ -111,21 +106,18 @@ int sys_read(int fd, userptr_t buf, size_t nbyte, size_t *size_read)
     return 0;
 
 #else // OPT_SYSFS
-    size_t read_bytes = 0;
-
     if (fd != STDOUT_FILENO && fd != STDERR_FILENO)
     {
         kprintf("Error: reading from a file!\n");
-        return -1;
+        return ENOSYS;
     }
 
     for (size_t i = 0; i < nbyte; i++)
-    {
         ((uint8_t *)buf)[i] = (uint8_t)getch();
-        read_bytes++;
-    }
 
-    return read_bytes;
+    *size_read = nbyte;
+
+    return 0;
 #endif // OPT_SYSFS
 }
 

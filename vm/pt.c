@@ -30,6 +30,12 @@ pmd_t *pmd_create_table(void)
     return pmd;
 }
 
+void pmd_destroy_table(struct addrspace *as)
+{
+    // TODO: finire
+    kfree(as->pmd);
+}
+
 // int pte_create_range(pmd_t *pmd, vaddr_t start, vaddr_t end)
 // {
 //     for (; start <  end - PAGE_SIZE; start += PAGE_SIZE) {

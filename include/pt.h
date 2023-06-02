@@ -47,6 +47,7 @@ extern pte_t *pte_create_table(void);
  */
 extern pmd_t *pmd_create_table(void);
 
+extern void pmd_destroy_table(struct addrspace *as);
 
 extern int pmd_create_range(struct addrspace *as, vaddr_t addr, size_t size);
 

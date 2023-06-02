@@ -148,6 +148,8 @@ as_destroy(struct addrspace *as)
 	free_kpages(as->asp_pbase1);
 	free_kpages(as->asp_stackpbase);
 
+	pmd_destroy_table(as);
+
 	if (as->asp_npages2 > 0)
 		free_kpages(as->asp_pbase2);
 
