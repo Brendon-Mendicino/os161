@@ -65,6 +65,24 @@ void file_destroy(struct file *file)
     vfs_close(file->vnode);
 }
 
+void file_add_offset(struct file *file, off_t offset)
+{
+    spinlock_acquire(&file->file_lock);
+    file->offset += offset;
+    spinlock_release(&file->file_lock);
+}
+
+off_t file_read_offset(struct file *file)
+{
+    off_t offset;
+
+    spinlock_acquire(&file->file_lock);
+    offset = file->offset;
+    spinlock_release(&file->file_lock);
+
+    return offset;
+}
+
 // static int __file_next_fd(struct file *head) 
 // {
 //     KASSERT(head != NULL);

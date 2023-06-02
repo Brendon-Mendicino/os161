@@ -13,23 +13,16 @@
 
 int sys_write(int fd, const_userptr_t buf, size_t nbyte, size_t *size_wrote)
 {
+#if OPT_SYSFS
     struct proc *curr;
     struct file *file;
     struct iovec iovec;
     struct uio uio;
     void *kbuf;
     int result;
-    size_t wrote_bytes = 0;
 
     KASSERT(curproc != NULL);
 
-#if OPT_SYSFS
-    // TODO: remove this
-    if (fd == STDOUT_FILENO || fd == STDERR_FILENO)
-        goto write_console;
-
-
-    // TODO: check buf size
     curr = curproc;
 
     kbuf = kmalloc(nbyte);
@@ -45,41 +38,27 @@ int sys_write(int fd, const_userptr_t buf, size_t nbyte, size_t *size_wrote)
     if (result)
         return result;
 
-    uio_kinit(
-        &iovec,
-        &uio,
-        kbuf,
-        nbyte,
-        file->offset,
-        UIO_WRITE
-    );
+    uio_kinit(&iovec, &uio, kbuf, nbyte, file_read_offset(file), UIO_WRITE);
 
     result = VOP_WRITE(file->vnode, &uio);
     if (result)
         return result;
 
-    // TODO: fix
-    *size_wrote = nbyte;
+    /* check if all the bytes were written */
+    *size_wrote = nbyte - uio.uio_resid;
+    file_add_offset(file, (off_t)*size_wrote);
 
     kfree(kbuf);
 
     return 0;
-
-write_console:
 #else // OPT_SYSFS
-    (void)curr;
-    (void)file;
-    (void)iovec;
-    (void)uio;
-    (void)kbuf;
-    (void)result;
+    size_t wrote_bytes = 0;
 
     if (fd != STDOUT_FILENO && fd != STDERR_FILENO)
     {
         kprintf("Error: writing to a file!\n");
         return EACCES;
     }
-#endif // OPT_SYSFS
 
     for (size_t i = 0; i < nbyte; i++)
     {
@@ -90,22 +69,18 @@ write_console:
     *size_wrote = wrote_bytes;
 
     return 0;
+#endif // OPT_SYSFS
 }
 
 int sys_read(int fd, userptr_t buf, size_t nbyte, size_t *size_read)
 {
+#if OPT_SYSFS
     struct proc *curr;
     struct file *file;
     struct iovec iovec;
     struct uio uio;
     void *kbuf;
     int result;
-    size_t read_bytes = 0;
-
-#if OPT_SYSFS
-    // TODO: remove this
-    if (fd == STDIN_FILENO)
-        goto read_console;
 
     KASSERT(curproc != NULL);
 
@@ -119,14 +94,7 @@ int sys_read(int fd, userptr_t buf, size_t nbyte, size_t *size_read)
     if (!file)
         return ENOENT;
 
-    uio_kinit(
-        &iovec,
-        &uio,
-        kbuf,
-        nbyte,
-        file->offset,
-        UIO_READ
-    );
+    uio_kinit(&iovec, &uio, kbuf, nbyte, file_read_offset(file), UIO_READ);
 
     result = VOP_READ(file->vnode, &uio);
     if (result)
@@ -136,26 +104,20 @@ int sys_read(int fd, userptr_t buf, size_t nbyte, size_t *size_read)
     if (result)
         return result;
 
-    // TODO: fix
-    *size_read = nbyte;
+    /* check if all the bytes were read */
+    *size_read = nbyte - uio.uio_resid;
+    file_add_offset(file, (off_t)*size_read);
 
     return 0;
 
-read_console:
 #else // OPT_SYSFS
-    (void)curr;
-    (void)file;
-    (void)iovec;
-    (void)uio;
-    (void)kbuf;
-    (void)result;
+    size_t read_bytes = 0;
 
     if (fd != STDOUT_FILENO && fd != STDERR_FILENO)
     {
         kprintf("Error: reading from a file!\n");
         return -1;
     }
-#endif // OPT_SYSFS
 
     for (size_t i = 0; i < nbyte; i++)
     {
@@ -164,9 +126,10 @@ read_console:
     }
 
     return read_bytes;
+#endif // OPT_SYSFS
 }
 
-
+#if OPT_SYSFS
 int sys_open(const_userptr_t pathname, int flags, mode_t mode, int *fd)
 {
     struct proc *curr;
@@ -208,3 +171,4 @@ int sys_close(int fd)
     (void)fd;
     return 0;
 }
+#endif // OPT_SYSFS
