@@ -58,9 +58,9 @@ static inline bool refcount_dec_not_zero(refcount_t *r)
 {
     bool success = false;
     spinlock_acquire(&r->lock);
-    if (r->count != 0) {
+    if (r->count > 0) {
         r->count -= 1;
-        success = false;
+        success = true;
     }
     spinlock_release(&r->lock);
 
