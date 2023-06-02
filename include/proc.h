@@ -152,6 +152,8 @@ struct addrspace *proc_setas(struct addrspace *);
 
 #ifdef OPT_SYSFS
 extern int proc_add_new_file(struct proc *proc, struct file *file);
+
+extern struct file *proc_get_file(struct proc *proc, int fd);
 #endif // OPT_SYSFS
 
 #endif /* _PROC_H_ */

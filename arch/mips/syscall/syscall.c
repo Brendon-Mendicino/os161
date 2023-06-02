@@ -116,14 +116,14 @@ void syscall(struct trapframe *tf)
 		err = sys_write((int)tf->tf_a0,
 						(const_userptr_t)tf->tf_a1,
 						(size_t)tf->tf_a2,
-						&retval);
+						(size_t *)&retval);
 		break;
 
 	case SYS_read:
 		err = sys_read((int)tf->tf_a0,
-						(const_userptr_t)tf->tf_a1,
+						(userptr_t)tf->tf_a1,
 						(size_t)tf->tf_a2,
-						&retval);
+						(size_t *)&retval);
 		break;
 
 	case SYS_waitpid:
@@ -146,7 +146,20 @@ void syscall(struct trapframe *tf)
 	case SYS_fork:
 		err = sys_fork(&retval, tf);
 		break;
-#endif
+#endif // OPT_SYSCALL
+
+#if OPT_SYSFS
+	case SYS_open:
+		err = sys_open((const_userptr_t)tf->tf_a0,
+						(int)tf->tf_a1,
+						(mode_t)tf->tf_a2,
+						&retval);
+		break;
+
+	case SYS_close:
+		err = sys_close((int)tf->tf_a0);
+		break;
+#endif // OPT_SYSFS
 
 	default:
 		kprintf("Unknown syscall %d\n", callno);

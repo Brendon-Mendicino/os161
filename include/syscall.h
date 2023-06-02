@@ -65,7 +65,7 @@ int sys___time(userptr_t user_seconds, userptr_t user_nanoseconds);
 #if OPT_SYSCALLS
 int sys_write(int fd, const_userptr_t buf, size_t nbyte, size_t *size_wrote);
 
-int sys_read(int fd, const_userptr_t buf, size_t nbyte, size_t *size_read);
+int sys_read(int fd, userptr_t buf, size_t nbyte, size_t *size_read);
 
 extern void sys__exit(int status);
 
