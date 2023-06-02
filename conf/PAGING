@@ -42,4 +42,6 @@ options cv              # Enable condition variables
 
 options sysfs           # Enable file related system calls
 
+options args            # Enable argunt passing to process
+
 options paging          # Enable paging in the system

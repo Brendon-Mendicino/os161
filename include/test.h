@@ -35,6 +35,7 @@
  * functions.
  */
 
+#include "opt-args.h"
 
 /*
  * Test code.
@@ -96,7 +97,11 @@ int kmalloctest4(int, char **);
 int nettest(int, char **);
 
 /* Routine for running a user-level program. */
+#if OPT_ARGS
+int runprogram(int argc, char **args);
+#else // OPT_ARGS
 int runprogram(char *progname);
+#endif // OPT_ARGS
 
 /* Kernel menu system. */
 void menu(char *argstr);

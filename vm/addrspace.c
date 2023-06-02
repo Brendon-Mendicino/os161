@@ -35,6 +35,7 @@
 #include <proc.h>
 #include <spl.h>
 #include <pt.h>
+#include <copyinout.h>
 #include <machine/tlb.h>
 
 /*
@@ -285,10 +286,16 @@ as_complete_load(struct addrspace *as)
 int
 as_define_stack(struct addrspace *as, vaddr_t *stackptr)
 {
-	/*
-	 * Write this.
-	 */
+#if OPT_ARGS
+	KASSERT(as != NULL);
+	KASSERT(as->start_arg != 0);
+	KASSERT(as->asp_stackpbase != 0);
 
+	/* start_arg must be 8byte aligned */
+	*stackptr = as->start_arg;
+
+	return 0;
+#else // OPT_ARGS
 	(void)as;
 	KASSERT(as->asp_stackpbase != 0);
 
@@ -296,5 +303,76 @@ as_define_stack(struct addrspace *as, vaddr_t *stackptr)
 	*stackptr = USERSTACK;
 
 	return 0;
+#endif // OPT_ARGS
 }
 
+
+#if OPT_ARGS
+int as_define_args(struct addrspace *as, int argc, char **argv, userptr_t *uargv)
+{
+	int i;
+	size_t arg_map_size = 0;
+	size_t offset = 0;
+	char **user_argv;
+
+	KASSERT(as != NULL);
+	KASSERT(as->asp_nstackpages > 0);
+	KASSERT(as->asp_stackpbase != 0);
+
+	/*
+	 * When allocating the space for the args
+	 * we need two things to place in memory:
+	 * - the array of pointers to the args
+	 * - the actual strings for the args
+	 */
+
+	/* we need to add one beacuse the vec is NULL-terminated */
+	arg_map_size += (argc + 1) * sizeof(char *);
+
+	for (i = 0; i < argc; i++) {
+		arg_map_size += strlen(argv[i]) + 1;
+	}
+
+	/* stack pointer must be 8byte aligned */
+
+	/* last aligned address is not usable */
+	arg_map_size = ROUNDUP(arg_map_size, 8) + 8;
+
+	as->start_arg = USERSTACK - arg_map_size;
+	/* end is not inclusive */
+	as->end_arg = as->start_arg + arg_map_size;
+
+
+	/* craete the strcture to be copyied in userspace */
+	user_argv = kmalloc((argc + 1) * sizeof(char **));
+	if (!user_argv)
+		return ENOMEM;
+
+	/* setup the args array */
+	user_argv[0] = (char *)as->start_arg + (argc + 1) * sizeof(char **);
+	for (i = 1; i < argc; i++) {
+		user_argv[i] = (char *)user_argv[i-1] + strlen(argv[i-1]) + 1;
+	}
+	user_argv[i] = NULL;
+	
+	/* copy the args array to the user space */
+	copyout(user_argv, (userptr_t)as->start_arg, (argc + 1) * sizeof(char **));
+
+
+	offset = (argc + 1) * sizeof(char **);
+
+	/* copy the args to the user space */
+	for (i = 0; i < argc; i++) {
+		KASSERT(as->start_arg + offset < USERSTACK);
+
+		copyoutstr(argv[i], (userptr_t)as->start_arg + offset, strlen(argv[i]) + 1, NULL);
+
+		offset += strlen(argv[i]) + 1;
+	}
+
+	/* set the user argv pointer */
+	*uargv = (userptr_t)as->start_arg;
+
+	return 0;
+}
+#endif // OPT_ARGS

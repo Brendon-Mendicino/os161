@@ -4,6 +4,7 @@
 #include <machine/pt.h>
 #include "opt-dumbvm.h"
 #include "opt-paging.h"
+#include "opt-args.h"
 
 
 /*
@@ -39,6 +40,11 @@ struct addrspace {
         vaddr_t start_data, end_data;
         vaddr_t start_stack, end_stack;
 #endif
+
+#if OPT_ARGS
+        /* args are allocated inside the stack */
+        vaddr_t start_arg, end_arg;
+#endif // OPT_ARGS
 };
 
 

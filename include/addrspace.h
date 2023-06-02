@@ -38,6 +38,7 @@
 #include <addrspace_types.h>
 #include <vm.h>
 #include "opt-dumbvm.h"
+#include "opt-args.h"
 
 struct vnode;
 
@@ -97,6 +98,10 @@ int               as_prepare_load(struct addrspace *as);
 int               as_complete_load(struct addrspace *as);
 int               as_define_stack(struct addrspace *as, vaddr_t *initstackptr);
 
+
+#if OPT_ARGS
+extern int as_define_args(struct addrspace *as, int argc, char **argv, userptr_t *uargv);
+#endif // OPT_ARGS
 
 /*
  * Functions in loadelf.c

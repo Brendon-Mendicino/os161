@@ -48,6 +48,7 @@
 #include "opt-sfs.h"
 #include "opt-net.h"
 #include "opt-syscalls.h"
+#include "opt-args.h"
 
 /*
  * In-kernel menu and command dispatcher.
@@ -91,7 +92,11 @@ cmd_progthread(void *ptr, unsigned long nargs)
 
 	strcpy(progname, args[0]);
 
+#if OPT_ARGS
+	result = runprogram(nargs, (char **)ptr);
+#else // OPT_ARGS
 	result = runprogram(progname);
+#endif // OPT_ARGS
 	if (result) {
 		kprintf("Running program %s failed: %s\n", args[0],
 			strerror(result));

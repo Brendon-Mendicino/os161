@@ -154,7 +154,7 @@ int sys_open(const_userptr_t pathname, int flags, mode_t mode, int *fd)
     return 0;
 
 bad_open_cleanup:
-    file_destroy(new_file);
+    kfree(new_file);
     return retval;
 }
 

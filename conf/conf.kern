@@ -360,6 +360,7 @@ optfile   paging vm/segments.c
 optfile   paging vm/vm_tlb.c
 optfile   paging vm/vmstats.c
 
+defoption args
 
 #
 # Network
