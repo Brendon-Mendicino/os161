@@ -60,7 +60,9 @@
                 "${env:HOME}/os161/root/include/sys",
                 "${env:HOME}/os161/root/include/machine"
             ],
-            "defines": [],
+            "defines": [
+                "_KERNEL"
+            ],
             "compilerPath": "${env:HOME}/os161/tools/bin/mips-harvard-os161-gcc",
             "cStandard": "c99",
             "cppStandard": "c++14",

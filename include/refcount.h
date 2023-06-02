@@ -12,7 +12,7 @@ typedef struct refcount {
 
 #define REFCOUNT_INIT(n)     { .lock = SPINLOCK_INITIALIZER , .count = (n) }
 
-static inline INIT_REFCOUNT(refcount_t *refcount, unsigned int count)
+static inline void INIT_REFCOUNT(refcount_t *refcount, unsigned int count)
 {
     refcount->count = count;
     spinlock_init(&refcount->lock);
