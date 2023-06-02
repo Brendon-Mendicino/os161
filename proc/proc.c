@@ -63,6 +63,8 @@
 
 /*
  * The process for the kernel; this holds all the kernel-only threads.
+ * 
+ * ftable will be initialized in proc_bootstrap
  */
 struct proc kproc = {
 	.p_name           = (char *)"[kernel]",
@@ -227,6 +229,7 @@ static
 struct proc *
 proc_create(const char *name)
 {
+	int retval;
 	struct proc *proc;
 
 	proc = kmalloc(sizeof(*proc));
@@ -249,6 +252,10 @@ proc_create(const char *name)
 	proc->wait_sem = sem_create("wait_sem", 0);
 	if (!proc->wait_sem)
 		goto bad_create_cleanup_lock;
+
+	retval = file_table_init(&proc->ftable);
+	if (retval)
+		goto bad_create_cleanup_sem;
 
 	/*
 	 * The new process is not running yet, this
@@ -278,11 +285,14 @@ proc_create(const char *name)
 	return proc;
 
 #if OPT_SYSCALLS
+bad_create_cleanup_sem:
+	sem_destroy(proc->wait_sem);
 bad_create_cleanup_lock:
 	lock_destroy(proc->wait_lock);
 bad_create_cleanup_cv:
 	cv_destroy(proc->wait_cv);
 #endif // OPT_SYSCALLS
+
 bad_create_cleanup_name:
 	kfree(proc->p_name);
 create_out:
@@ -600,6 +610,14 @@ proc_setas(struct addrspace *newas)
 }
 
 #if OPT_SYSFS
+/**
+ * @brief adds a new file to the file table inside
+ * the process
+ * 
+ * @param proc 
+ * @param file 
+ * @return int 
+ */
 int proc_add_new_file(struct proc *proc, struct file *file)
 {
 	int fd;
@@ -613,5 +631,23 @@ int proc_add_new_file(struct proc *proc, struct file *file)
 	spinlock_release(&proc->p_lock);
 
 	return fd;
+}
+
+/**
+ * @brief return the file from it's file descriptor
+ * 
+ * @param fd 
+ * @return struct file* return the file it exist
+ * otherwise NULL
+ */
+struct file *proc_get_file(struct proc *proc, int fd)
+{
+	struct file *file;
+
+	spinlock_acquire(&proc->p_lock);
+	file = file_table_get(&proc->ftable, fd);
+	spinlock_release(&proc->p_lock);
+
+	return file;
 }
 #endif // OPT_SYSFS
