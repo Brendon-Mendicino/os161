@@ -171,4 +171,20 @@ int sys_close(int fd)
     (void)fd;
     return 0;
 }
+
+int sys_remove(const_userptr_t path)
+{
+    int retval;
+    char kpath[PATH_MAX];
+
+    retval = copyinstr(path, kpath, sizeof(kpath), NULL);
+    if (retval)
+        return retval;
+
+    retval = vfs_remove(kpath);
+    if (retval)
+        return retval;
+
+    return 0;
+}
 #endif // OPT_SYSFS

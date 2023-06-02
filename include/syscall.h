@@ -80,6 +80,8 @@ extern int sys_fork(pid_t *pid, struct trapframe *tf);
 extern int sys_open(const_userptr_t pathname, int flags, mode_t mode, int *fd);
 
 extern int sys_close(int fd);
+
+extern int sys_remove(const_userptr_t path);
 #endif // OPT_SYSFS
 
 #endif /* _SYSCALL_H_ */

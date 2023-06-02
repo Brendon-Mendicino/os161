@@ -159,6 +159,10 @@ void syscall(struct trapframe *tf)
 	case SYS_close:
 		err = sys_close((int)tf->tf_a0);
 		break;
+
+	case SYS_remove:
+		err = sys_remove((const_userptr_t)tf->tf_a0);
+		break;
 #endif // OPT_SYSFS
 
 	default:
