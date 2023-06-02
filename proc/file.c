@@ -63,6 +63,8 @@ void file_destroy(struct file *file)
         return;
 
     vfs_close(file->vnode);
+
+    kfree(file);
 }
 
 void file_add_offset(struct file *file, off_t offset)
@@ -174,4 +176,14 @@ struct file *file_table_get(struct file_table *head,int fd)
     }
 
     return (found) ? file : NULL;
+}
+
+void file_table_clear(struct file_table *ftable)
+{
+    struct file *file, *n;
+
+    list_for_each_entry_safe(file, n, &ftable->file_head, file_head) {
+        list_del(&file->file_head);
+        file_destroy(file);
+    }
 }

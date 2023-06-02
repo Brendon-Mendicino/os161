@@ -42,4 +42,6 @@ extern int file_table_init(struct file_table *ftable);
 
 extern struct file *file_table_get(struct file_table *head, int fd);
 
+extern void file_table_clear(struct file_table *ftable);
+
 #endif // _FILE_H_

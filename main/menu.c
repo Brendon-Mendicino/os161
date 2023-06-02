@@ -97,7 +97,7 @@ cmd_progthread(void *ptr, unsigned long nargs)
 			strerror(result));
 
 #if OPT_SYSCALLS
-		proc_make_zombie(1, curproc);
+		sys__exit(-1);
 #endif
 		return;
 	}
@@ -142,8 +142,11 @@ common_prog(int nargs, char **args)
 
 #if OPT_SYSCALLS
 	int exit_code = 0;
+	int retval;
 	if (proc->pid != -1) {
-		proc_check_zombie(proc->pid, &exit_code, 0, curproc);
+		retval = proc_check_zombie(proc->pid, &exit_code, 0, curproc);
+		if (retval)
+			panic("Kernel waiting for proc returned err: %d\n", retval);
 		kprintf("Exit status: %d\n", exit_code);
 	}
 #endif // OPT_SYSCALLS

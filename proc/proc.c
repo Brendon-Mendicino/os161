@@ -229,7 +229,6 @@ static
 struct proc *
 proc_create(const char *name)
 {
-	int retval;
 	struct proc *proc;
 
 	proc = kmalloc(sizeof(*proc));
@@ -253,9 +252,11 @@ proc_create(const char *name)
 	if (!proc->wait_sem)
 		goto bad_create_cleanup_lock;
 
-	retval = file_table_init(&proc->ftable);
+#if OPT_SYSFS
+	int retval = file_table_init(&proc->ftable);
 	if (retval)
 		goto bad_create_cleanup_sem;
+#endif // OPT_SYSFS
 
 	/*
 	 * The new process is not running yet, this
@@ -285,8 +286,10 @@ proc_create(const char *name)
 	return proc;
 
 #if OPT_SYSCALLS
+#if OPT_SYSFS
 bad_create_cleanup_sem:
 	sem_destroy(proc->wait_sem);
+#endif // OPT_SYSFS
 bad_create_cleanup_lock:
 	lock_destroy(proc->wait_lock);
 bad_create_cleanup_cv:
@@ -393,6 +396,12 @@ proc_destroy(struct proc *proc)
 
 	del_child_proc(proc);
 #endif // OPT_SYSCALLS
+
+#if OPT_SYSFS
+	/* clear the file left unclosed */
+	file_table_clear(&proc->ftable);
+#endif // OPT_SYSFS
+
 
 	kfree(proc->p_name);
 	kfree(proc);
@@ -507,7 +516,7 @@ proc_copy(void)
 	return new_proc;
 
 fork_out:
-	kfree(new_proc);
+	proc_destroy(new_proc);
 	return NULL;
 }
 
