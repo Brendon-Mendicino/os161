@@ -7,6 +7,7 @@
 #include <refcount.h>
 #include <spinlock.h>
 #include <vfs.h>
+#include <synch.h>
 
 
 struct file {
@@ -16,7 +17,7 @@ struct file {
 
     off_t offset;                   /* offset inside the file */
 
-    struct spinlock file_lock;      /* struct file lock */
+    struct lock *file_lock;      /* struct file lock */
 };
 
 struct file_table_entry {
@@ -26,9 +27,12 @@ struct file_table_entry {
 
 struct file_table {
     struct list_head file_head;
+    struct lock *table_lock;
     size_t open_files;
 };
 
+#define FILE_TABLE(name) \
+    struct file_table name = { .file_head = LIST_HEAD_INIT(name.file_head), .open_files = 0 }
 
 extern struct file *file_create(void);
 

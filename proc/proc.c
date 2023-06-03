@@ -96,7 +96,7 @@ DEFINE_HASHTABLE(proc_table, 5);
  * This value is locked by
  * p_lock of kproc.
  */
-static pid_t max_pid = 0;
+static pid_t max_pid = PID_MIN;
 
 /*
  * Removes a child from the children
@@ -198,11 +198,10 @@ static inline pid_t alloc_pid(void)
     
 	spinlock_acquire(&kproc.p_lock);
 	max_pid += 1;
+    if (max_pid >= PID_MAX || max_pid < PID_MIN)
+        max_pid = PID_MIN;
 	pid = max_pid;
 	spinlock_release(&kproc.p_lock);
-
-    if (pid >= PID_MAX || pid < PID_MIN)
-        pid = PID_MIN;
 
     return pid;
 }
@@ -408,9 +407,12 @@ proc_destroy(struct proc *proc)
 #endif // OPT_SYSCALLS
 
 #if OPT_SYSFS
-	lock_destroy(proc->ftable_lock);
 	/* clear the file left unclosed */
+	lock_acquire(proc->ftable_lock);
 	file_table_clear(&proc->ftable);
+	lock_release(proc->ftable_lock);
+
+	lock_destroy(proc->ftable_lock);
 #endif // OPT_SYSFS
 
 
@@ -489,28 +491,38 @@ proc_create_runprogram(const char *name)
 struct proc *
 proc_copy(void)
 {
-	struct proc *new_proc;
+	struct proc *curr, *new_proc;
+	struct addrspace *as;
+	FILE_TABLE(ftable);
 	int err;
 
 	KASSERT(curproc != NULL);
+	curr = curproc;
 
 	new_proc = proc_create("proc_copy");
 	if (!new_proc)
 		return NULL;
 
-	err = as_copy(curproc->p_addrspace, &new_proc->p_addrspace);
+	err = as_copy(curr->p_addrspace, &as);
 	if (err)
 		goto fork_out;
 
+	new_proc->p_addrspace = as;
+
 #if OPT_SYSCALLS
-	new_proc->parent = curproc;
+	new_proc->parent = curr;
 
 	// TODO: fix this
 	new_proc->pid = alloc_pid();
 	insert_proc(new_proc);
 
-	add_new_child_proc(new_proc, curproc);
+	add_new_child_proc(new_proc, curr);
 #endif // OPT_SYSCALLS
+
+#if OPT_SYSFS
+	// TODO: remove file_table init from proc_create
+	file_table_copy(&curr->ftable, &new_proc->ftable);
+#endif // OPT_SYSFS
 
 	/*
 	 * Lock the current process to copy its current directory.

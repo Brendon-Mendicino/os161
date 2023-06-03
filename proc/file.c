@@ -22,6 +22,12 @@ struct file *file_create(void)
     if (!file)
         return NULL;
 
+    file->file_lock = lock_create("file_lock");
+    if (!file->file_lock) {
+        kfree(file);
+        return NULL;
+    }
+
     file->vnode = NULL;
 
     file->fd = -1;
@@ -30,8 +36,6 @@ struct file *file_create(void)
 
     INIT_REFCOUNT(&file->refcount, 1);
     
-    spinlock_init(&file->file_lock);
-
     return file;
 }
 
@@ -73,7 +77,7 @@ void file_destroy(struct file *file)
 
     KASSERT(file != NULL);
 
-    spinlock_acquire(&file->file_lock);
+    lock_acquire(file->file_lock);
 
     success = refcount_dec_not_zero(&file->refcount);
     if (!success) {
@@ -87,10 +91,12 @@ void file_destroy(struct file *file)
         destroy = true;
     }
 
-    spinlock_release(&file->file_lock);
+    lock_release(file->file_lock);
 
     if (!destroy)
         return;
+
+    lock_destroy(file->file_lock);
 
     vfs_close(file->vnode);
 
@@ -101,9 +107,12 @@ int file_copy(struct file *file, struct file **copy)
 {
     struct file *new;
 
+    lock_acquire(file->file_lock);
     new = file_create();
-    if (!new)
+    if (!new) {
+        lock_release(file->file_lock);
         return ENOMEM;
+    }
 
     new->fd = file->fd;
     new->offset = file->offset;
@@ -112,24 +121,25 @@ int file_copy(struct file *file, struct file **copy)
     new->vnode = file->vnode;
 
     *copy = new;
+    lock_acquire(file->file_lock);
 
     return 0;
 }
 
 void file_add_offset(struct file *file, off_t offset)
 {
-    spinlock_acquire(&file->file_lock);
+    lock_acquire(file->file_lock);
     file->offset += offset;
-    spinlock_release(&file->file_lock);
+    lock_release(file->file_lock);
 }
 
 off_t file_read_offset(struct file *file)
 {
     off_t offset;
 
-    spinlock_acquire(&file->file_lock);
+    lock_acquire(file->file_lock);
     offset = file->offset;
-    spinlock_release(&file->file_lock);
+    lock_release(file->file_lock);
 
     return offset;
 }
@@ -215,6 +225,7 @@ int file_table_init(struct file_table *ftable)
 
 
     INIT_LIST_HEAD(&ftable->file_head);
+    ftable->open_files = 0;
 
     for (fd = 0; fd < 3; fd++) {
         /*
@@ -247,7 +258,7 @@ int file_table_init(struct file_table *ftable)
             goto bad_init_cleanup_file;
     }
 
-    ftable->open_files = 3;
+    KASSERT(ftable->open_files == 3);
 
     return 0;
 
@@ -284,10 +295,12 @@ void file_table_clear(struct file_table *ftable)
     struct file_table_entry *file_entry, *n;
 
     list_for_each_entry_safe(file_entry, n, &ftable->file_head, file_head) {
+        KASSERT(ftable->open_files != 0);
         __table_entry_destroy(file_entry);
+        ftable->open_files -= 1;
     }
 
-    ftable->open_files = 0;
+    KASSERT(ftable->open_files == 0);
 }
 
 /**
@@ -302,27 +315,30 @@ void file_table_clear(struct file_table *ftable)
  */
 int file_table_copy(struct file_table *ftable, struct file_table *copy)
 {
-    struct file_table_entry *entry;
+    struct file_table_entry *entry, *n;
     struct file *file;
     int retval;
+    int counter = 0;
 
     INIT_LIST_HEAD(&copy->file_head);
+    copy->open_files = 0;
 
-    list_for_each_entry(entry, &ftable->file_head, file_head) {
+    list_for_each_entry_safe(entry, n, &ftable->file_head, file_head) {
         file = entry->file;
 
+        lock_acquire(file->file_lock);
         /* increase reference count */
         retval = refcount_inc_not_zero(&file->refcount);
         if (!retval)
             panic("file_table_copy: tryied to increase 0 reference count\n");
-
+        lock_release(file->file_lock);
 
         retval = file_table_add(file, copy);
         if (retval)
             goto out;
     }
 
-    copy->open_files = ftable->open_files;
+    KASSERT(copy->open_files == ftable->open_files);
 
     return 0;
 
