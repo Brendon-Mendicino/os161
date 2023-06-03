@@ -635,6 +635,7 @@ int proc_add_new_file(struct proc *proc, struct file *file)
 
 	fd = file_next_fd(&proc->ftable);
 	file->fd = fd;
+	// TODO: aggiungere gestione errore
 	file_table_add(file, &proc->ftable);
 
 	spinlock_release(&proc->p_lock);

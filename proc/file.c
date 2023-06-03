@@ -29,12 +29,35 @@ struct file *file_create(void)
 
     INIT_REFCOUNT(&file->refcount, 1);
     
-    INIT_LIST_HEAD(&file->file_head);
-    
     spinlock_init(&file->file_lock);
 
     return file;
 }
+
+static struct file_table_entry *__table_entry_create(void)
+{
+    struct file_table_entry *entry;
+
+    entry = kmalloc(sizeof(struct file_table_entry));
+    if (!entry)
+        return NULL;
+
+    entry->file = NULL;
+    INIT_LIST_HEAD(&entry->file_head);
+
+    return entry;
+}
+
+// static void __table_entry_destroy(struct file_table_entry *entry)
+// {
+//     KASSERT(entry != NULL);
+
+//     list_del(&entry->file_head);
+
+//     file_destroy(entry->file);
+
+//     kfree(entry);
+// }
 
 void file_destroy(struct file *file)
 {
@@ -65,6 +88,25 @@ void file_destroy(struct file *file)
     vfs_close(file->vnode);
 
     kfree(file);
+}
+
+int file_copy(struct file *file, struct file **copy)
+{
+    struct file *new;
+
+    new = file_create();
+    if (!new)
+        return ENOMEM;
+
+    new->fd = file->fd;
+    new->offset = file->offset;
+
+    vnode_incref(file->vnode);
+    new->vnode = file->vnode;
+
+    *copy = new;
+
+    return 0;
 }
 
 void file_add_offset(struct file *file, off_t offset)
@@ -100,19 +142,28 @@ int file_next_fd(struct file_table *head)
     KASSERT(head != NULL);
     KASSERT(!list_empty(&head->file_head));
 
-    struct file *file = list_last_entry(&head->file_head, struct file, file_head);
+    struct file_table_entry *entry = list_last_entry(&head->file_head, struct file_table_entry, file_head);
+    struct file *file = entry->file;
 
     return file->fd + 1;
 }
 
-void file_table_add(struct file *file, struct file_table *head)
+int file_table_add(struct file *file, struct file_table *head)
 {
     KASSERT(file != NULL);
     KASSERT(head != NULL);
     /* file is still uninitialized */
     KASSERT(file->fd >= 0);
 
-    list_add_tail(&file->file_head, &head->file_head);
+    struct file_table_entry *entry = __table_entry_create();
+    if (!entry)
+        return ENOMEM;
+
+    entry->file = file;
+
+    list_add_tail(&entry->file_head, &head->file_head);
+
+    return 0;
 }
 
 /**
@@ -140,50 +191,62 @@ int file_table_init(struct file_table *ftable)
          * vfs_open represnt the console device
          */
         char *console = kstrdup("con:");
-        if (!console)
-            return ENOMEM;
+        if (!console) {
+            retval = ENOMEM;
+            goto out;
+        }
 
         retval = vfs_open(console, openflag[fd], 0, &console_vnode);
         kfree(console);
         if (retval)
-            return retval;
+            goto out;
 
         console_file = file_create();
         if (!console_file) {
             vfs_close(console_vnode);
-            return ENOMEM;
+            retval =  ENOMEM;
+            goto out;
         }
 
         console_file->fd = fd;
         console_file->vnode = console_vnode;
 
-        file_table_add(console_file, ftable);
+        retval = file_table_add(console_file, ftable);
+        if (retval)
+            goto bad_init_cleanup_file;
     }
 
     return 0;
+
+bad_init_cleanup_file:
+    file_destroy(console_file);
+out:
+    file_table_clear(ftable);
+    return retval;
 }
 
-struct file *file_table_get(struct file_table *head,int fd)
+struct file *file_table_get(struct file_table *head, int fd)
 {
-    struct file *file;
+    struct file_table_entry *entry;
     bool found = false;
 
-    list_for_each_entry(file, &head->file_head, file_head) {
-        if (file->fd == fd) {
-            found = true;;
+    list_for_each_entry(entry, &head->file_head, file_head) {
+        if (entry->file->fd == fd) {
+            found = true;
             break;
         }
     }
 
-    return (found) ? file : NULL;
+    return (found) ? entry->file : NULL;
 }
 
 void file_table_clear(struct file_table *ftable)
 {
-    struct file *file, *n;
+    struct file_table_entry *file_entry, *n;
 
-    list_for_each_entry_safe(file, n, &ftable->file_head, file_head) {
-        list_del(&file->file_head);
-        file_destroy(file);
+    list_for_each_entry_safe(file_entry, n, &ftable->file_head, file_head) {
+        list_del(&file_entry->file_head);
+        file_destroy(file_entry->file);
+        kfree(file_entry);
     }
 }

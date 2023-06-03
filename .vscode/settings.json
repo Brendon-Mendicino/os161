@@ -52,6 +52,9 @@
         "spl.h": "c",
         "atomic": "cpp",
         "vfs.h": "c",
-        "file.h": "c"
+        "file.h": "c",
+        "uio.h": "c",
+        "limits.h": "c",
+        "copyinout.h": "c"
     }
 }
