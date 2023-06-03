@@ -3,6 +3,7 @@
 #include <refcount.h>
 #include <spinlock.h>
 #include <lib.h>
+#include <limits.h>
 #include <kern/fcntl.h>
 #include <kern/errno.h>
 
@@ -48,16 +49,22 @@ static struct file_table_entry *__table_entry_create(void)
     return entry;
 }
 
-// static void __table_entry_destroy(struct file_table_entry *entry)
-// {
-//     KASSERT(entry != NULL);
+/**
+ * @brief removed a entry from a table destroing the 
+ * inner file and removing it from the table list.
+ * 
+ * @param entry 
+ */
+static void __table_entry_destroy(struct file_table_entry *entry)
+{
+    KASSERT(entry != NULL);
 
-//     list_del(&entry->file_head);
+    list_del(&entry->file_head);
 
-//     file_destroy(entry->file);
+    file_destroy(entry->file);
 
-//     kfree(entry);
-// }
+    kfree(entry);
+}
 
 void file_destroy(struct file *file)
 {
@@ -154,6 +161,10 @@ int file_table_add(struct file *file, struct file_table *head)
     KASSERT(head != NULL);
     /* file is still uninitialized */
     KASSERT(file->fd >= 0);
+    KASSERT(refcount_read(&file->refcount) > 0);
+
+    if (head->open_files == OPEN_MAX)
+        return EMFILE;
 
     struct file_table_entry *entry = __table_entry_create();
     if (!entry)
@@ -161,9 +172,29 @@ int file_table_add(struct file *file, struct file_table *head)
 
     entry->file = file;
 
+    head->open_files += 1;
+
     list_add_tail(&entry->file_head, &head->file_head);
 
     return 0;
+}
+
+int file_table_remove(struct file_table *ftable, int fd)
+{
+    struct file_table_entry *entry, *n;
+
+    KASSERT(ftable != NULL);
+    KASSERT(ftable->open_files > 0);
+
+    list_for_each_entry_safe(entry, n, &ftable->file_head, file_head) {
+        if (entry->file->fd == fd) {
+            ftable->open_files -= 1;
+            __table_entry_destroy(entry);
+            return 0;
+        }
+    }
+
+    return ENOENT;
 }
 
 /**
@@ -216,6 +247,8 @@ int file_table_init(struct file_table *ftable)
             goto bad_init_cleanup_file;
     }
 
+    ftable->open_files = 3;
+
     return 0;
 
 bad_init_cleanup_file:
@@ -240,13 +273,61 @@ struct file *file_table_get(struct file_table *head, int fd)
     return (found) ? entry->file : NULL;
 }
 
+/**
+ * @brief removes all the files from the file
+ * table calling file_destroy on them
+ * 
+ * @param ftable 
+ */
 void file_table_clear(struct file_table *ftable)
 {
     struct file_table_entry *file_entry, *n;
 
     list_for_each_entry_safe(file_entry, n, &ftable->file_head, file_head) {
-        list_del(&file_entry->file_head);
-        file_destroy(file_entry->file);
-        kfree(file_entry);
+        __table_entry_destroy(file_entry);
     }
+
+    ftable->open_files = 0;
+}
+
+/**
+ * @brief copies the a file table to a new one
+ * increasing the refcount of the inner files,
+ * the inner files are not copyied only a reference
+ * is kept inside the table.
+ * 
+ * @param ftable the table to copy from
+ * @param copy the file table has to uninitialized
+ * @return return error if any
+ */
+int file_table_copy(struct file_table *ftable, struct file_table *copy)
+{
+    struct file_table_entry *entry;
+    struct file *file;
+    int retval;
+
+    INIT_LIST_HEAD(&copy->file_head);
+
+    list_for_each_entry(entry, &ftable->file_head, file_head) {
+        file = entry->file;
+
+        /* increase reference count */
+        retval = refcount_inc_not_zero(&file->refcount);
+        if (!retval)
+            panic("file_table_copy: tryied to increase 0 reference count\n");
+
+
+        retval = file_table_add(file, copy);
+        if (retval)
+            goto out;
+    }
+
+    copy->open_files = ftable->open_files;
+
+    return 0;
+
+/* cleanup bad initialization */
+out:
+    file_table_clear(copy);
+    return retval;
 }

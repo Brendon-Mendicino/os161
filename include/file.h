@@ -44,6 +44,8 @@ extern int file_next_fd(struct file_table *head);
 
 extern int file_table_add(struct file *file, struct file_table *head);
 
+extern int file_table_remove(struct file_table *ftable, int fd);
+
 extern int file_table_init(struct file_table *ftable);
 
 extern struct file *file_table_get(struct file_table *head, int fd);
