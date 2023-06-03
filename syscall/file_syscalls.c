@@ -160,8 +160,9 @@ bad_open_cleanup:
 
 int sys_close(int fd)
 {
-    (void)fd;
-    return 0;
+    KASSERT(curproc != NULL);
+
+    return proc_removed_file(curproc, fd);
 }
 
 int sys_remove(const_userptr_t path)

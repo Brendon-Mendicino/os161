@@ -114,7 +114,8 @@ struct proc {
 #endif // OPT_SYSCALLS
 
 #ifdef OPT_SYSFS
-	struct file_table ftable;   	/* open file table*/
+	struct lock *ftable_lock;       /* file table lock */
+	struct file_table ftable;       /* open file table*/
 #endif // OPT_SYSFS
 };
 
@@ -152,6 +153,8 @@ struct addrspace *proc_setas(struct addrspace *);
 
 #ifdef OPT_SYSFS
 extern int proc_add_new_file(struct proc *proc, struct file *file);
+
+extern int proc_removed_file(struct proc *proc, int fd);
 
 extern struct file *proc_get_file(struct proc *proc, int fd);
 #endif // OPT_SYSFS

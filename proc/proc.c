@@ -253,9 +253,13 @@ proc_create(const char *name)
 		goto bad_create_cleanup_lock;
 
 #if OPT_SYSFS
+	proc->ftable_lock = lock_create("ftable_lock");
+	if (!proc->ftable_lock)
+		goto bad_create_cleanup_sem;
+
 	int retval = file_table_init(&proc->ftable);
 	if (retval)
-		goto bad_create_cleanup_sem;
+		goto bad_create_cleanup_flock;
 #endif // OPT_SYSFS
 
 	/*
@@ -287,17 +291,23 @@ proc_create(const char *name)
 
 #if OPT_SYSCALLS
 #if OPT_SYSFS
+bad_create_cleanup_flock:
+	lock_destroy(proc->ftable_lock);
+
 bad_create_cleanup_sem:
 	sem_destroy(proc->wait_sem);
 #endif // OPT_SYSFS
+
 bad_create_cleanup_lock:
 	lock_destroy(proc->wait_lock);
+
 bad_create_cleanup_cv:
 	cv_destroy(proc->wait_cv);
 #endif // OPT_SYSCALLS
 
 bad_create_cleanup_name:
 	kfree(proc->p_name);
+
 create_out:
 	kfree(proc);
 	return NULL;
@@ -398,6 +408,7 @@ proc_destroy(struct proc *proc)
 #endif // OPT_SYSCALLS
 
 #if OPT_SYSFS
+	lock_destroy(proc->ftable_lock);
 	/* clear the file left unclosed */
 	file_table_clear(&proc->ftable);
 #endif // OPT_SYSFS
@@ -631,16 +642,35 @@ int proc_add_new_file(struct proc *proc, struct file *file)
 {
 	int fd;
 
-	spinlock_acquire(&proc->p_lock);
+	lock_acquire(proc->ftable_lock);
 
 	fd = file_next_fd(&proc->ftable);
 	file->fd = fd;
 	// TODO: aggiungere gestione errore
 	file_table_add(file, &proc->ftable);
 
-	spinlock_release(&proc->p_lock);
+	lock_release(proc->ftable_lock);
 
 	return fd;
+}
+
+/**
+ * @brief removed a file from the process file
+ * table.
+ * 
+ * @param proc 
+ * @param fd 
+ * @return int 
+ */
+int proc_removed_file(struct proc *proc, int fd)
+{
+	int retval;
+
+	lock_acquire(proc->ftable_lock);
+	retval = file_table_remove(&proc->ftable, fd);
+	lock_release(proc->ftable_lock);
+
+	return retval;
 }
 
 /**
@@ -654,9 +684,9 @@ struct file *proc_get_file(struct proc *proc, int fd)
 {
 	struct file *file;
 
-	spinlock_acquire(&proc->p_lock);
+	lock_acquire(proc->ftable_lock);
 	file = file_table_get(&proc->ftable, fd);
-	spinlock_release(&proc->p_lock);
+	lock_release(proc->ftable_lock);
 
 	return file;
 }
