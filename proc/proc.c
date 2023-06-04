@@ -109,8 +109,9 @@ void del_child_proc(struct proc *child)
 	KASSERT(child != NULL);
 	KASSERT(child->parent != NULL);
 
+	// TODO: check for race conditions
 	spinlock_acquire(&child->parent->p_lock);
-	list_del(&child->siblings);
+	list_del_init(&child->siblings);
 	spinlock_release(&child->parent->p_lock);
 }
 
@@ -187,6 +188,8 @@ static inline void free_pid(struct proc *proc)
 	spinlock_acquire(&kproc.p_lock);
 	hash_del(&proc->pid_link);
 	spinlock_release(&kproc.p_lock);
+
+	proc->pid = -1;
 }
 
 /**
@@ -217,6 +220,44 @@ static inline void insert_proc(struct proc *new)
 	spinlock_release(&kproc.p_lock);
 }
 #endif // OPT_SYSCALLS
+
+/*
+ * This is an internal function that is the
+ * mirror of `proc_create`, we need this because there
+ * are some cases where the structure inside proc may still
+ * not be initialized, we will take care of that in error
+ * handling and in `proc_destroy` which uninitialize
+ * everything.
+ */
+static void
+__proc_destroy(struct proc *proc)
+{
+	KASSERT(proc->p_cwd == NULL);
+	KASSERT(proc->p_addrspace == NULL);
+
+	KASSERT(proc->p_numthreads == 0);
+	spinlock_cleanup(&proc->p_lock);
+
+#if OPT_SYSCALLS
+	KASSERT(proc->pid == -1);
+
+	KASSERT(list_empty(&proc->children));
+	KASSERT(list_empty(&proc->siblings));
+
+	cv_destroy(proc->wait_cv);
+	lock_destroy(proc->wait_lock);
+	sem_destroy(proc->wait_sem);
+#endif // OPT_SYSCALLS
+
+#if OPT_SYSFS
+	/* clear the file left unclosed */
+	file_table_clear(proc->ftable);
+	file_table_destroy(proc->ftable);
+#endif // OPT_SYSFS
+
+	kfree(proc->p_name);
+	kfree(proc);
+}
 
 /*
  * Create a proc structure.
@@ -256,6 +297,9 @@ proc_create(const char *name)
 	if (!proc->ftable)
 		goto bad_create_cleanup_sem;
 #endif // OPT_SYSFS
+
+	proc->pid = -1;
+	INIT_HLIST_NODE(&proc->pid_link);
 
 	/*
 	 * The new process is not running yet, this
@@ -389,25 +433,13 @@ proc_destroy(struct proc *proc)
 	spinlock_cleanup(&proc->p_lock);
 
 #if OPT_SYSCALLS
-	cv_destroy(proc->wait_cv);
-	lock_destroy(proc->wait_lock);
-	sem_destroy(proc->wait_sem);
-
 	/* remove from proc_table */
 	free_pid(proc);
 
 	del_child_proc(proc);
 #endif // OPT_SYSCALLS
 
-#if OPT_SYSFS
-	/* clear the file left unclosed */
-	file_table_clear(proc->ftable);
-	file_table_destroy(proc->ftable);
-#endif // OPT_SYSFS
-
-
-	kfree(proc->p_name);
-	kfree(proc);
+	__proc_destroy(proc);
 }
 
 /*
@@ -531,7 +563,7 @@ proc_copy(void)
 	return new_proc;
 
 fork_out:
-	proc_destroy(new_proc);
+	__proc_destroy(new_proc);
 	return NULL;
 }
 
