@@ -114,8 +114,7 @@ struct proc {
 #endif // OPT_SYSCALLS
 
 #ifdef OPT_SYSFS
-	struct lock *ftable_lock;       /* file table lock */
-	struct file_table ftable;       /* open file table*/
+	struct file_table *ftable;       /* open file table */
 #endif // OPT_SYSFS
 };
 

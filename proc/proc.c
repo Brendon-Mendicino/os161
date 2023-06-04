@@ -252,13 +252,9 @@ proc_create(const char *name)
 		goto bad_create_cleanup_lock;
 
 #if OPT_SYSFS
-	proc->ftable_lock = lock_create("ftable_lock");
-	if (!proc->ftable_lock)
+	proc->ftable = file_table_create();
+	if (!proc->ftable)
 		goto bad_create_cleanup_sem;
-
-	int retval = file_table_init(&proc->ftable);
-	if (retval)
-		goto bad_create_cleanup_flock;
 #endif // OPT_SYSFS
 
 	/*
@@ -290,9 +286,6 @@ proc_create(const char *name)
 
 #if OPT_SYSCALLS
 #if OPT_SYSFS
-bad_create_cleanup_flock:
-	lock_destroy(proc->ftable_lock);
-
 bad_create_cleanup_sem:
 	sem_destroy(proc->wait_sem);
 #endif // OPT_SYSFS
@@ -408,11 +401,8 @@ proc_destroy(struct proc *proc)
 
 #if OPT_SYSFS
 	/* clear the file left unclosed */
-	lock_acquire(proc->ftable_lock);
-	file_table_clear(&proc->ftable);
-	lock_release(proc->ftable_lock);
-
-	lock_destroy(proc->ftable_lock);
+	file_table_clear(proc->ftable);
+	file_table_destroy(proc->ftable);
 #endif // OPT_SYSFS
 
 
@@ -481,6 +471,10 @@ proc_create_runprogram(const char *name)
 	add_new_child_proc(newproc, curproc);
 #endif // OPT_SYSCALLS
 
+#if OPT_SYSFS
+	file_table_init(newproc->ftable);
+#endif // OPT_SYSFS
+
 
 	return newproc;
 }
@@ -493,7 +487,6 @@ proc_copy(void)
 {
 	struct proc *curr, *new_proc;
 	struct addrspace *as;
-	FILE_TABLE(ftable);
 	int err;
 
 	KASSERT(curproc != NULL);
@@ -520,8 +513,7 @@ proc_copy(void)
 #endif // OPT_SYSCALLS
 
 #if OPT_SYSFS
-	// TODO: remove file_table init from proc_create
-	file_table_copy(&curr->ftable, &new_proc->ftable);
+	file_table_copy(curr->ftable, new_proc->ftable);
 #endif // OPT_SYSFS
 
 	/*
@@ -652,16 +644,13 @@ proc_setas(struct addrspace *newas)
  */
 int proc_add_new_file(struct proc *proc, struct file *file)
 {
+	struct file_table *ftable = proc->ftable;
 	int fd;
 
-	lock_acquire(proc->ftable_lock);
-
-	fd = file_next_fd(&proc->ftable);
+	fd = file_next_fd(ftable);
 	file->fd = fd;
 	// TODO: aggiungere gestione errore
-	file_table_add(file, &proc->ftable);
-
-	lock_release(proc->ftable_lock);
+	file_table_add(file, ftable);
 
 	return fd;
 }
@@ -676,13 +665,7 @@ int proc_add_new_file(struct proc *proc, struct file *file)
  */
 int proc_removed_file(struct proc *proc, int fd)
 {
-	int retval;
-
-	lock_acquire(proc->ftable_lock);
-	retval = file_table_remove(&proc->ftable, fd);
-	lock_release(proc->ftable_lock);
-
-	return retval;
+	return file_table_remove(proc->ftable, fd);
 }
 
 /**
@@ -694,12 +677,6 @@ int proc_removed_file(struct proc *proc, int fd)
  */
 struct file *proc_get_file(struct proc *proc, int fd)
 {
-	struct file *file;
-
-	lock_acquire(proc->ftable_lock);
-	file = file_table_get(&proc->ftable, fd);
-	lock_release(proc->ftable_lock);
-
-	return file;
+	return file_table_get(proc->ftable, fd);
 }
 #endif // OPT_SYSFS
