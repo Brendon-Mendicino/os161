@@ -6,6 +6,7 @@
 #include <current.h>
 #include <list.h>
 #include <thread.h>
+#include <copyinout.h>
 
 
 void sys__exit(int status)
@@ -35,19 +36,24 @@ void sys__exit(int status)
 
 int sys_waitpid(pid_t pid, userptr_t wstatus, int options, pid_t *exit_pid)
 {
-    pid_t result;
+    int retval;
+    int sys_wstatus;
 
     KASSERT(exit_pid != NULL);
 
     if (options != 0)
         panic("sys_waitpid: options|wstatus not implemented yet\n");
 
-    result = proc_check_zombie(pid, (int *)wstatus, options, curproc);
+    retval = proc_check_zombie(pid, &sys_wstatus, options, curproc);
+    if (retval)
+        return retval;
+
+    retval = copyout(&sys_wstatus, wstatus, sizeof(int));
 
     // TODO: cambiare
     *exit_pid = pid;
 
-    return result;
+    return retval;
 }
 
 pid_t sys_getpid(void)

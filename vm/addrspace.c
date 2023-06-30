@@ -308,6 +308,17 @@ as_define_stack(struct addrspace *as, vaddr_t *stackptr)
 
 
 #if OPT_ARGS
+/**
+ * @brief sets up the user space that contains the args of the program.
+ * The args space is confined between the `USER_TOP` and the begenning of the
+ * user stack.
+ * 
+ * @param as 
+ * @param argc 
+ * @param argv 
+ * @param uargv 
+ * @return error code
+ */
 int as_define_args(struct addrspace *as, int argc, char **argv, userptr_t *uargv)
 {
 	int i;
@@ -338,7 +349,7 @@ int as_define_args(struct addrspace *as, int argc, char **argv, userptr_t *uargv
 	/* last aligned address is not usable */
 	arg_map_size = ROUNDUP(arg_map_size, 8) + 8;
 
-	as->start_arg = USERSTACK - arg_map_size;
+	as->start_arg = USERSPACETOP - arg_map_size;
 	/* end is not inclusive */
 	as->end_arg = as->start_arg + arg_map_size;
 
@@ -363,7 +374,7 @@ int as_define_args(struct addrspace *as, int argc, char **argv, userptr_t *uargv
 
 	/* copy the args to the user space */
 	for (i = 0; i < argc; i++) {
-		KASSERT(as->start_arg + offset < USERSTACK);
+		KASSERT(as->start_arg + offset < USERSPACETOP);
 
 		copyoutstr(argv[i], (userptr_t)as->start_arg + offset, strlen(argv[i]) + 1, NULL);
 
