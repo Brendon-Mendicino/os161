@@ -42,6 +42,8 @@ options cv              # Enable condition variables
 
 options sysfs           # Enable file related system calls
 
-options args            # Enable argunt passing to process
+options args            # Enable argument passing to process
+
+options atomic          # Enable atomic type
 
 options paging          # Enable paging in the system

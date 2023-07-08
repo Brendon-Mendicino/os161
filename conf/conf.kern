@@ -363,6 +363,15 @@ optfile   paging vm/vmstats.c
 defoption args
 
 #
+# Atomic types
+# (Enable atomic operations with the atomic_t type)
+#
+
+defoption   atomic
+
+optfile     atomic test/atomic_unit.c
+
+#
 # Network
 # (nothing here yet)
 #

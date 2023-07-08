@@ -36,6 +36,7 @@
  */
 
 #include "opt-args.h"
+#include "opt-atomic.h"
 
 /*
  * Test code.
@@ -55,6 +56,11 @@ int semtest(int, char **);
 int locktest(int, char **);
 int cvtest(int, char **);
 int cvtest2(int, char **);
+
+#if OPT_ATOMIC
+/* atomic unit test */
+int atmu1(int, char **);
+#endif
 
 /* semaphore unit tests */
 int semu1(int, char **);

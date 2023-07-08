@@ -49,6 +49,7 @@
 #include "opt-net.h"
 #include "opt-syscalls.h"
 #include "opt-args.h"
+#include "opt-atomic.h"
 
 /*
  * In-kernel menu and command dispatcher.
@@ -615,6 +616,9 @@ static const char *testmenu[] = {
 #if OPT_NET
 	"[net] Network test                  ",
 #endif
+#if OPT_ATOMIC
+	"[atmu1] Atomic test 1               ",
+#endif
 	"[sy1] Semaphore test                ",
 	"[sy2] Lock test             (1)     ",
 	"[sy3] CV test               (1)     ",
@@ -724,6 +728,9 @@ static struct {
 	{ "sy2",	locktest },
 	{ "sy3",	cvtest },
 	{ "sy4",	cvtest2 },
+
+	/* atmomic unit tests */
+	{ "atmu1",  atmu1 },
 
 	/* semaphore unit tests */
 	{ "semu1",	semu1 },
