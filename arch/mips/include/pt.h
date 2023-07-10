@@ -188,7 +188,7 @@ static inline void pte_set_page(pte_t *pte, vaddr_t page_addr, vaddr_t addr, str
     /* assign the pte pointer */
     pte_entry->pteval |= page_addr & (~PTE_FLAGS_MASK);
 
-    pte->pteflags &= ~PTE_FLAGS_MASK;
+    pte_entry->pteflags &= ~PTE_FLAGS_MASK;
     pte_set_flags(pte_entry, flags);
 }
 

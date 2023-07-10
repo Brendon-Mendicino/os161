@@ -23,7 +23,7 @@ static inline vaddr_t pmd_addr_end(vaddr_t addr, vaddr_t end)
  */
 static inline pte_t *pte_offset(pmd_t *pmd, vaddr_t addr)
 {
-    return (pte_t *)(pmd_ptetable(*pmd) + pte_index(addr));
+    return ((pte_t *)pmd_value(*pmd)) + pte_index(addr);
 }
 #include <lib.h>
 
@@ -78,7 +78,12 @@ static pte_t *pte_create_table(void)
 
 static void pte_free_table(pte_t *pte)
 {
-    free_kpages((vaddr_t)pte_value(*pte));
+    size_t i;
+
+    // TODO: add check for page refcount
+    for (i = 0; i < PTRS_PER_PTE; i++)
+        if (pte_present(pte[i]))
+            free_kpages(pte_value(pte[i]));
 }
 
 static int pte_alloc_page_range(pte_t *pte, vaddr_t start, vaddr_t end, struct pt_page_flags flags)
@@ -97,12 +102,14 @@ static int pte_alloc_page_range(pte_t *pte, vaddr_t start, vaddr_t end, struct p
         .page_dirty = false,
     };
 
+    kprintf("pte: %x\n", (size_t)pte);
     for (curr_addr = start, pmd_curr_index = pmd_index(start);
             curr_addr < end && pmd_curr_index == pmd_index(curr_addr);
             curr_addr += PAGE_SIZE)
     {
-        if (pte_present(pte[pte_index(start)])) {
-            pte_set_flags(&pte[pte_index(start)], page_flags);
+        kprintf("pte_entry: %x\n", (size_t)&pte[pte_index(curr_addr)]);
+        if (pte_present(pte[pte_index(curr_addr)])) {
+            pte_set_flags(&pte[pte_index(curr_addr)], page_flags);
             continue;
         }
 
@@ -111,6 +118,7 @@ static int pte_alloc_page_range(pte_t *pte, vaddr_t start, vaddr_t end, struct p
             return ENOMEM;
 
         pte_set_page(pte, page, curr_addr, page_flags);
+        kprintf("pte_entry value: %x\n", (size_t)pte[pte_index(curr_addr)].pteval);
     }
 
     return 0;
@@ -153,7 +161,7 @@ static void pmd_free_table(pmd_t *pmd)
         if (pmd_present(pmd[i]))
             pte_free_table(pmd_ptetable(pmd[i]));
 
-    free_kpages((vaddr_t)pmd_value(*pmd));
+    free_kpages((vaddr_t)pmd);
 }
 
 /**
