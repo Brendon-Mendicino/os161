@@ -101,7 +101,7 @@ static int pte_alloc_page_range(pte_t *pte, vaddr_t start, vaddr_t end, struct p
             curr_addr < end && pmd_curr_index == pmd_index(curr_addr);
             curr_addr += PAGE_SIZE)
     {
-        if (!pte_present(pte[pte_index(start)])) {
+        if (pte_present(pte[pte_index(start)])) {
             pte_set_flags(&pte[pte_index(start)], page_flags);
             continue;
         }
