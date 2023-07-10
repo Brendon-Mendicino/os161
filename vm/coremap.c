@@ -63,6 +63,12 @@ getppages(unsigned long npages)
 	return addr;
 }
 
+/**
+ * @brief Allocates npages contiguosly for the kernel
+ * 
+ * @param npages number contiguos pages to allocate
+ * @return vaddr_t returns 0 if no page was allocated
+ */
 vaddr_t
 alloc_kpages(unsigned npages)
 {

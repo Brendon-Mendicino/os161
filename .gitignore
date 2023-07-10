@@ -54,11 +54,11 @@ dkms.conf
 # OS161
 *.swo
 *.swp
-/compile/*
+compile/*
 # /compile/**/.depend*
 # /compile/**/kernel
 # /compile/**/vers.c
 # /compile/**/version
 
 # VSCODE
-.vscode/settings.json
+# .vscode/settings.json

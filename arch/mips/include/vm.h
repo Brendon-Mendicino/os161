@@ -30,6 +30,8 @@
 #ifndef _MIPS_VM_H_
 #define _MIPS_VM_H_
 
+#include <lib.h>
+
 
 /*
  * Machine-dependent VM system definitions.
@@ -70,6 +72,13 @@
  * a valid address, and will make a *huge* mess if you scribble on it.
  */
 #define PADDR_TO_KVADDR(paddr) ((paddr)+MIPS_KSEG0)
+
+static inline paddr_t kvaddr_to_paddr(vaddr_t addr)	
+{
+	KASSERT(addr >= MIPS_KSEG0);
+
+	return (paddr_t)addr - MIPS_KSEG0;
+}
 
 /*
  * The top of user space. (Actually, the address immediately above the

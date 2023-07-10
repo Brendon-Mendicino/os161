@@ -30,6 +30,7 @@
 #include <types.h>
 #include <kern/errno.h>
 #include <lib.h>
+#include <addrspace_types.h>
 #include <addrspace.h>
 #include <vm.h>
 #include <proc.h>
@@ -37,6 +38,49 @@
 #include <pt.h>
 #include <copyinout.h>
 #include <machine/tlb.h>
+
+static struct addrspace_area *
+as_create_area(vaddr_t start, vaddr_t end, bool read, bool write, bool exec)
+{
+	struct  addrspace_area *area;
+
+	KASSERT(start < end);
+
+	area = kmalloc(sizeof(struct addrspace_area));
+	if (!area)
+		return NULL;
+
+	area->area_start = start;
+	area->area_end = end;
+	area->area_flags =
+		AS_AREA_EXEC * exec |
+		AS_AREA_READ * read |
+		AS_AREA_WRITE * write;
+
+	INIT_LIST_HEAD(&area->next_area);
+
+	return area;
+}
+
+
+static int
+as_add_area(struct addrspace *as, struct addrspace_area *area)
+{
+	struct addrspace_area *entry;
+
+	KASSERT(as != NULL);
+	KASSERT(area != NULL);
+
+	/* check that the interval is unique */
+	as_for_each_area(as, entry) {
+		if (area->area_start < entry->area_end && area->area_end > entry->area_start)
+			return EINVAL;
+	}
+
+	list_add_tail(&area->next_area, &as->addrspace_area_list);
+
+	return 0;
+}
 
 /*
  * Note! If OPT_DUMBVM is set, as is the case until you start the VM
@@ -50,6 +94,7 @@
 struct addrspace *
 as_create(void)
 {
+	int retval;
 	struct addrspace *as;
 
 	as = kmalloc(sizeof(struct addrspace));
@@ -66,9 +111,11 @@ as_create(void)
 	as->asp_stackpbase = 0;
 	as->asp_nstackpages = AS_STACKPAGES;
 
-	as->pmd = pmd_create_table();
-	if (!as->pmd)
+	retval = pt_init(&as->pt);
+	if (retval)
 		return NULL;
+
+	INIT_LIST_HEAD(&as->addrspace_area_list);
 
 	return as;
 }
@@ -142,17 +189,17 @@ as_destroy(struct addrspace *as)
 {
 
 	/* as_pbase2 could be 0 */
-	KASSERT(as->asp_pbase1 != 0);
+	// KASSERT(as->asp_pbase1 != 0);
 	KASSERT(as->asp_stackpbase != 0);
 
 	/* TODO: modify in the future */
-	free_kpages(as->asp_pbase1);
+	// free_kpages(as->asp_pbase1);
 	free_kpages(as->asp_stackpbase);
 
-	pmd_destroy_table(as);
+	pt_destroy(&as->pt);
 
-	if (as->asp_npages2 > 0)
-		free_kpages(as->asp_pbase2);
+	// if (as->asp_npages2 > 0)
+	// 	free_kpages(as->asp_pbase2);
 
 	kfree(as);
 }
@@ -202,39 +249,22 @@ int
 as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize,
 		 int readable, int writeable, int executable)
 {
-	size_t npages;
+	int retval;
+	struct addrspace_area *area;
 
-	/* Align the region. First, the base... */
-	memsize += vaddr & ~(vaddr_t)PAGE_FRAME;
-	vaddr &= PAGE_FRAME;
+	area = as_create_area(vaddr,
+			vaddr + memsize,
+			readable ? true : false,
+			writeable ? true : false,
+			executable ? true : false);
+	if (!area)
+		return ENOMEM;
 
-	/* ...and now the length. */
-	memsize = (memsize + PAGE_SIZE - 1) & PAGE_FRAME;
+	retval = as_add_area(as, area);
+	if (retval)
+		return retval;
 
-	npages = memsize / PAGE_SIZE;
-
-	/* We don't use these - all pages are read-write */
-	(void)readable;
-	(void)writeable;
-	(void)executable;
-
-	if (as->asp_vbase1 == 0) {
-		as->asp_vbase1 = vaddr;
-		as->asp_npages1 = npages;
-		return 0;
-	}
-
-	if (as->asp_vbase2 == 0) {
-		as->asp_vbase2 = vaddr;
-		as->asp_npages2 = npages;
-		return 0;
-	}
-
-	/*
-	 * Support for more than two regions is not available.
-	 */
-	kprintf("dumbvm: Warning: too many regions\n");
-	return ENOSYS;
+	return 0;
 }
 
 static void
@@ -246,18 +276,25 @@ as_zero_region(vaddr_t addr, size_t npages)
 int
 as_prepare_load(struct addrspace *as)
 {
+	int retval;
+	struct addrspace_area *area;
+
 	KASSERT(as->asp_pbase1 == 0);
 	KASSERT(as->asp_pbase2 == 0);
 	KASSERT(as->asp_stackpbase == 0);
 
-	as->asp_pbase1 = alloc_kpages(as->asp_npages1);
-	if (as->asp_pbase1 == 0) {
-		return ENOMEM;
-	}
 
-	as->asp_pbase2 = alloc_kpages(as->asp_npages2);
-	if (as->asp_pbase2 == 0) {
-		return ENOMEM;
+	as_for_each_area(as, area) {
+		retval = pt_alloc_page_range(&as->pt,
+				area->area_start,
+				area->area_end,
+				(struct pt_page_flags){
+					.page_rw = area->area_flags & AS_AREA_READ ? true : false,
+					.page_pwt = false,
+				});
+
+		if (retval)
+			return retval;
 	}
 
 	as->asp_stackpbase = alloc_kpages(as->asp_nstackpages);
@@ -265,8 +302,8 @@ as_prepare_load(struct addrspace *as)
 		return ENOMEM;
 	}
 
-	as_zero_region(as->asp_pbase1, as->asp_npages1);
-	as_zero_region(as->asp_pbase2, as->asp_npages2);
+	// as_zero_region(as->asp_pbase1, as->asp_npages1);
+	// as_zero_region(as->asp_pbase2, as->asp_npages2);
 	as_zero_region(as->asp_stackpbase, as->asp_nstackpages);
 
 	return 0;
@@ -353,8 +390,10 @@ int as_define_args(struct addrspace *as, int argc, char **argv, userptr_t *uargv
 	/* end is not inclusive */
 	as->end_arg = as->start_arg + arg_map_size;
 
+	KASSERT(as->start_arg < as->end_arg);
 
-	/* craete the strcture to be copyied in userspace */
+
+	/* create the strcture to be copyied in userspace */
 	user_argv = kmalloc((argc + 1) * sizeof(char **));
 	if (!user_argv)
 		return ENOMEM;
@@ -368,6 +407,7 @@ int as_define_args(struct addrspace *as, int argc, char **argv, userptr_t *uargv
 	
 	/* copy the args array to the user space */
 	copyout(user_argv, (userptr_t)as->start_arg, (argc + 1) * sizeof(char **));
+	kfree(user_argv);
 
 
 	offset = (argc + 1) * sizeof(char **);

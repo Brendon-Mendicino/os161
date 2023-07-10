@@ -5,6 +5,7 @@
 #include <spinlock.h>
 
 #define WITH_SPINLOCK 0
+#define WITH_ATOMIC 0
 
 
 #if WITH_SPINLOCK

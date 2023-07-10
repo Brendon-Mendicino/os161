@@ -55,6 +55,12 @@
         "file.h": "c",
         "uio.h": "c",
         "limits.h": "c",
-        "copyinout.h": "c"
+        "copyinout.h": "c",
+        "typeinfo": "c",
+        "addrspace_types.h": "c",
+        "atomic.h": "c",
+        "test.h": "c",
+        "opt-atomic.h": "c",
+        "cdefs.h": "c"
     }
 }

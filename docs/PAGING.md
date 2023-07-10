@@ -50,7 +50,7 @@ che dovranno essere contigue
   |   |-------|           |   |-------|     |       |                       
   |   |       |           \-->|       |---->+-------+                           
   |   |-------|               |-------|                            
-  |   |pte_t *|-----\         |       |                            
+  |   |       |-----\         |       |                            
   \-->|-------|     |         |-------|                            
       |       |     |         |       |                            
   /-->+-------+     \-------->+-------+                            
@@ -60,3 +60,8 @@ pmd_t *
 ```
 
 La `struct proc` avra' un campo `pmd_t *pmt` che punta al primo livello della tabella.
+
+
+## Atomic
+
+T

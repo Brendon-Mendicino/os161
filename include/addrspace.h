@@ -36,11 +36,32 @@
 
 
 #include <addrspace_types.h>
+#include <list.h>
 #include <vm.h>
 #include "opt-dumbvm.h"
 #include "opt-args.h"
 
 struct vnode;
+
+/**
+ * @brief Iterate over the list of areas that an address space contains.
+ * 
+ * @param as struct addrspace *: the addrspace 
+ * @param area struct addrspace_area *: will contain the entry
+ */
+#define as_for_each_area(as, area)          \
+	list_for_each_entry(area, &as->addrspace_area_list, next_area)
+
+/**
+ * @brief Iterate over the list of areas that an address space contains,
+ * safe against removal of list entry
+ * 
+ * @param as struct addrspace *: the addrspace 
+ * @param area struct addrspace_area *: will contain the entry
+ * @param temp struct addrspace_area *: temporary storage for the entry
+ */
+#define as_for_each_area_safe(as, area, temp)          \
+	list_for_each_entry_safe(area, temp, &as->addrspace_area_list, next_area)
 
 /*
  * Functions in addrspace.c:
