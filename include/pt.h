@@ -8,6 +8,7 @@ typedef struct pmd_t pmd_t;
 
 struct page_table {
     pmd_t *pmd;     /* pointer to the PageMiddleDirectory */
+    size_t total_pages;    /* number of allocated pages */
 };
 
 struct pt_page_flags {

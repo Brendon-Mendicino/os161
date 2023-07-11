@@ -179,8 +179,11 @@ as_destroy(struct addrspace *as)
 
 	// TODO: refactor
 	as_for_each_area_safe(as, area, temp) {
+		list_del(&area->next_area);
 		kfree(area);
 	}
+
+	KASSERT(list_empty(&as->addrspace_area_list));
 
 	pt_destroy(&as->pt);
 

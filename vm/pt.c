@@ -8,8 +8,8 @@
 
 static inline vaddr_t pmd_addr_end(vaddr_t addr, vaddr_t end)
 {
-    vaddr_t __boundary = (addr + PMD_ADDR_SIZE) & PMD_ADDR_MASK;
-    return (__boundary - 1 < end - 1) ? __boundary : end;
+    vaddr_t boundary = (addr + PMD_ADDR_SIZE) & PMD_ADDR_MASK;
+    return (boundary - 1 < end - 1) ? boundary : end;
 }
 
 
@@ -25,7 +25,6 @@ static inline pte_t *pte_offset(pmd_t *pmd, vaddr_t addr)
 {
     return ((pte_t *)pmd_value(*pmd)) + pte_index(addr);
 }
-#include <lib.h>
 
 /**
  * @brief Find an entry in the PMD given his pointer
@@ -76,25 +75,42 @@ static pte_t *pte_create_table(void)
     return pte;
 }
 
-static void pte_free_table(pte_t *pte)
+/**
+ * @brief freed the pte and return the number of freed
+ * pages
+ * 
+ * @param pte 
+ * @return number freed pages
+ */
+static size_t pte_free_table(pte_t *pte)
 {
+    size_t freed_pages = 0;
     size_t i;
 
     // TODO: add check for page refcount
-    for (i = 0; i < PTRS_PER_PTE; i++)
-        if (pte_present(pte[i]))
-            free_kpages(pte_value(pte[i]));
+    /* free pages */
+    for (i = 0; i < PTRS_PER_PTE; i++) {
+        if (!pte_present(pte[i]))
+            continue;
+
+        free_kpages(pte_value(pte[i]));
+        freed_pages += 1;
+    }
 
     free_kpages((vaddr_t)pte);
+
+    return freed_pages;
 }
 
-static int pte_alloc_page_range(pte_t *pte, vaddr_t start, vaddr_t end, struct pt_page_flags flags)
+static int pte_alloc_page_range(pte_t *pte, vaddr_t start, vaddr_t end, struct pt_page_flags flags, size_t *alloc_pages)
 {
     vaddr_t curr_addr;
     vaddr_t page;
     size_t pmd_curr_index;
 
     KASSERT(pte != NULL);
+    KASSERT(alloc_pages != NULL);
+    KASSERT(start <= end);
 
     struct page_flags page_flags = (struct page_flags){
         .page_present = true,
@@ -116,6 +132,8 @@ static int pte_alloc_page_range(pte_t *pte, vaddr_t start, vaddr_t end, struct p
         page = alloc_kpages(1);
         if (!page)
             return ENOMEM;
+
+        *alloc_pages += 1;
 
         pte_set_page(&pte[pte_index(curr_addr)], page, page_flags);
     }
@@ -150,17 +168,30 @@ static pmd_t *pmd_create_table(void)
     return pmd;
 }
 
-static void pmd_free_table(pmd_t *pmd)
+/**
+ * @brief freed the pmd table and return the number of freed
+ * pages
+ * 
+ * @param pmd 
+ * @return size_t number of freed pages
+ */
+static size_t pmd_free_table(pmd_t *pmd)
 {
+    size_t freed_pages = 0;
     size_t i;
 
     KASSERT(pmd != NULL);
 
-    for (i = 0; i < PTRS_PER_PMD; i++)
-        if (pmd_present(pmd[i]))
-            pte_free_table(pmd_ptetable(pmd[i]));
+    for (i = 0; i < PTRS_PER_PMD; i++) {
+        if (!pmd_present(pmd[i]))
+            continue;
+
+        freed_pages += pte_free_table(pmd_ptetable(pmd[i]));
+    }
 
     free_kpages((vaddr_t)pmd);
+
+    return freed_pages;
 }
 
 /**
@@ -183,7 +214,7 @@ static int pmd_alloc_pte(pmd_t *pmd, vaddr_t addr)
     return 0;
 }
 
-static int pmd_alloc_page_range(pmd_t *pmd, vaddr_t start, vaddr_t end, struct pt_page_flags flags)
+static int pmd_alloc_page_range(pmd_t *pmd, vaddr_t start, vaddr_t end, struct pt_page_flags flags, size_t *alloc_pages)
 {
     int retval;
     vaddr_t next;
@@ -191,6 +222,8 @@ static int pmd_alloc_page_range(pmd_t *pmd, vaddr_t start, vaddr_t end, struct p
     pte_t *pte;
 
     KASSERT(pmd != NULL);
+    KASSERT(alloc_pages != NULL);
+    KASSERT(start <= end);
 
     do {
         next = pmd_addr_end(start, end);
@@ -205,7 +238,7 @@ static int pmd_alloc_page_range(pmd_t *pmd, vaddr_t start, vaddr_t end, struct p
 
         pte = pmd_ptetable(*pmd_entry);
 
-        retval = pte_alloc_page_range(pte, start, end, flags);
+        retval = pte_alloc_page_range(pte, start, end, flags, alloc_pages);
         if (retval)
             return retval;
 
@@ -224,6 +257,8 @@ int pt_init(struct page_table *pt)
 {
     KASSERT(pt != NULL);
 
+    pt->total_pages = 0;
+
     pt->pmd = pmd_create_table();
     if (!pt->pmd)
         return ENOMEM;
@@ -239,7 +274,9 @@ void pt_destroy(struct page_table *pt)
     // TODO: do a recursive delete and check for refcount
     //...
 
-    pmd_free_table(pt->pmd);
+    pt->total_pages -= pmd_free_table(pt->pmd);
+
+    KASSERT(pt->total_pages == 0);
 }
 
 int pt_alloc_page(struct page_table *pt, vaddr_t addr, struct pt_page_flags flags)
@@ -280,15 +317,26 @@ int pt_alloc_page(struct page_table *pt, vaddr_t addr, struct pt_page_flags flag
 
     pte_set_page(&pte[pte_index(addr)], page, page_flags);
     
+    pt->total_pages += 1;
+
     return 0;
 }
 
 int pt_alloc_page_range(struct page_table *pt, vaddr_t start, vaddr_t end, struct pt_page_flags flags)
 {
+    int retval;
+    size_t alloc_pages = 0;
+
     KASSERT(pt != NULL);
     KASSERT(pt->pmd != NULL);
 
-    return pmd_alloc_page_range(pt->pmd, start, end, flags);
+    retval = pmd_alloc_page_range(pt->pmd, start, end, flags, &alloc_pages);
+    if (retval)
+        return retval;
+
+    pt->total_pages += alloc_pages;
+
+    return 0;
 }
 
 /**
@@ -321,12 +369,9 @@ int pt_copy(struct page_table *new, struct page_table *old)
 
     KASSERT(old->pmd != NULL);
     KASSERT(new->pmd != NULL);
+    KASSERT(new->total_pages == 0);
 
     // TODO: implement COW of the pages
-    new->pmd = pmd_create_table();
-    if (!new->pmd)
-        return ENOMEM;
-
     // TODO: refactor, this is just temp, fix flags
     for (i = 0; i < PTRS_PER_PMD; i++) {
         if (!pmd_present(old->pmd[i]))
@@ -347,11 +392,13 @@ int pt_copy(struct page_table *new, struct page_table *old)
             if (!new_page)
                 return ENOMEM;
 
+            new->total_pages += 1;
+
             /* copy the old page, this is just temporary */
             memmove((void *)new_page, (void *)pte_value(old_pte[j]), PAGE_SIZE);
 
             struct page_flags page_flags = (struct page_flags){
-                .page_present = true,
+                .page_present = (pte_flags(old_pte[j]) & PAGE_PRESENT) == PAGE_PRESENT,
                 .page_accessed = (pte_flags(old_pte[j]) & PAGE_ACCESSED) == PAGE_ACCESSED,
                 .page_dirty = (pte_flags(old_pte[j]) & PAGE_DIRTY) == PAGE_DIRTY,
                 .page_rw = (pte_flags(old_pte[j]) & PAGE_RW) == PAGE_RW,
@@ -360,6 +407,8 @@ int pt_copy(struct page_table *new, struct page_table *old)
             pte_set_page(&new_pte[j], new_page, page_flags);
         }
     }
+
+    KASSERT(new->total_pages == old->total_pages);
     
     return 0;
 }

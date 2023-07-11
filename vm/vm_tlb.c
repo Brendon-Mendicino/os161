@@ -86,10 +86,6 @@ vm_fault(int faulttype, vaddr_t faultaddress)
 	// }
 
 	paddr = pt_get_pfn(&as->pt, faultaddress);
-	if (paddr == 0) {
-		paddr = pt_get_pfn(&as->pt, faultaddress);
-		kprintf("fault: %x -> %x, process: %s\n", (unsigned)faultaddress, (unsigned)paddr, curproc->p_name);
-	}
 	if (paddr == 0)
 		return EFAULT;
 
