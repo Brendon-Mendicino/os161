@@ -53,15 +53,6 @@ struct addrspace {
         paddr_t as_stackpbase;
         pmd_t *pmd;
 #elif OPT_PAGING
-        vaddr_t asp_vbase1;
-        vaddr_t asp_pbase1;
-        size_t asp_npages1;
-        vaddr_t asp_vbase2;
-        vaddr_t asp_pbase2;
-        size_t asp_npages2;
-        vaddr_t asp_stackpbase;
-        size_t asp_nstackpages;
-
         struct page_table pt;
 
         struct list_head addrspace_area_list;

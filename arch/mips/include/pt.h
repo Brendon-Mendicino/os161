@@ -169,18 +169,16 @@ static inline void pte_clean_table(pte_t *pte)
 }
 
 /**
- * @brief assigns a page to an entry in the pte given an address and
- * sets his flags, all previus flags are set to 0.
+ * @brief assigns a page to a pte entry given an page address and
+ * his flags, all previus flags are set to 0.
  * 
  * @param pte PTE table
  * @param page_addr address of the physical page
  * @param addr virtual address
  * @param flags page flags
  */
-static inline void pte_set_page(pte_t *pte, vaddr_t page_addr, vaddr_t addr, struct page_flags flags)
+static inline void pte_set_page(pte_t *pte_entry, vaddr_t page_addr, struct page_flags flags)
 { 
-    pte_t *pte_entry = &pte[pte_index(addr)];
-
     KASSERT(!pte_present(*pte_entry));
 
     /* reset pte pointer */
@@ -277,17 +275,13 @@ static inline void pmd_set_present(pmd_t *pmd)
 }
 
 /**
- * @brief assigns a pte to an entry in the pmd given an address 
- * and sets it as a valid entry.
+ * @brief assigns a pte to the pmd_entry and set the flag as present
  * 
- * @param pmd list of pmd
- * @param pte list of pte
- * @param addr 
+ * @param pmd_entry pmd_entry
+ * @param pte pte table
  */
-static inline void pmd_set_pte(pmd_t *pmd, pte_t *pte, vaddr_t addr)
+static inline void pmd_set_pte(pmd_t *pmd_entry, pte_t *pte)
 {
-    pmd_t *pmd_entry = &pmd[pmd_index(addr)];
-
     KASSERT(!pmd_present(*pmd_entry));
 
     /* reset pte pointer */

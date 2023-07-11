@@ -1,3 +1,4 @@
+#include <compiler_types.h>
 #include <kern/errno.h>
 #include <types.h>
 #include <spl.h>
@@ -57,12 +58,12 @@ vm_fault(int faulttype, vaddr_t faultaddress)
 	// KASSERT(as->asp_vbase2 != 0);
 	// KASSERT(as->asp_pbase2 != 0);
 	// KASSERT(as->asp_npages2 != 0);
-	KASSERT(as->asp_stackpbase != 0);
+	// KASSERT(as->asp_stackpbase != 0);
 	// KASSERT((as->asp_vbase1 & PAGE_FRAME) == as->asp_vbase1);
 	// KASSERT((as->asp_pbase1 & PAGE_FRAME) == as->asp_pbase1);
 	// KASSERT((as->asp_vbase2 & PAGE_FRAME) == as->asp_vbase2);
 	// KASSERT((as->asp_pbase2 & PAGE_FRAME) == as->asp_pbase2);
-	KASSERT((as->asp_stackpbase & PAGE_FRAME) == as->asp_stackpbase);
+	// KASSERT((as->asp_stackpbase & PAGE_FRAME) == as->asp_stackpbase);
 
 	// vbase1 = as->asp_vbase1;
 	// vtop1 = vbase1 + as->asp_npages1 * PAGE_SIZE;
@@ -85,6 +86,10 @@ vm_fault(int faulttype, vaddr_t faultaddress)
 	// }
 
 	paddr = pt_get_pfn(&as->pt, faultaddress);
+	if (paddr == 0) {
+		paddr = pt_get_pfn(&as->pt, faultaddress);
+		kprintf("fault: %x -> %x, process: %s\n", (unsigned)faultaddress, (unsigned)paddr, curproc->p_name);
+	}
 	if (paddr == 0)
 		return EFAULT;
 

@@ -84,6 +84,8 @@ static void pte_free_table(pte_t *pte)
     for (i = 0; i < PTRS_PER_PTE; i++)
         if (pte_present(pte[i]))
             free_kpages(pte_value(pte[i]));
+
+    free_kpages((vaddr_t)pte);
 }
 
 static int pte_alloc_page_range(pte_t *pte, vaddr_t start, vaddr_t end, struct pt_page_flags flags)
@@ -102,12 +104,10 @@ static int pte_alloc_page_range(pte_t *pte, vaddr_t start, vaddr_t end, struct p
         .page_dirty = false,
     };
 
-    kprintf("pte: %x\n", (size_t)pte);
     for (curr_addr = start, pmd_curr_index = pmd_index(start);
             curr_addr < end && pmd_curr_index == pmd_index(curr_addr);
             curr_addr += PAGE_SIZE)
     {
-        kprintf("pte_entry: %x\n", (size_t)&pte[pte_index(curr_addr)]);
         if (pte_present(pte[pte_index(curr_addr)])) {
             pte_set_flags(&pte[pte_index(curr_addr)], page_flags);
             continue;
@@ -117,8 +117,7 @@ static int pte_alloc_page_range(pte_t *pte, vaddr_t start, vaddr_t end, struct p
         if (!page)
             return ENOMEM;
 
-        pte_set_page(pte, page, curr_addr, page_flags);
-        kprintf("pte_entry value: %x\n", (size_t)pte[pte_index(curr_addr)].pteval);
+        pte_set_page(&pte[pte_index(curr_addr)], page, page_flags);
     }
 
     return 0;
@@ -179,7 +178,7 @@ static int pmd_alloc_pte(pmd_t *pmd, vaddr_t addr)
     if (!pte)   
         return ENOMEM;
 
-    pmd_set_pte(pmd, pte, addr);
+    pmd_set_pte(&pmd[pmd_index(addr)], pte);
 
     return 0;
 }
@@ -194,11 +193,9 @@ static int pmd_alloc_page_range(pmd_t *pmd, vaddr_t start, vaddr_t end, struct p
     KASSERT(pmd != NULL);
 
     do {
-        kprintf("start: %x, end; %x\n", (unsigned)start, (unsigned)end);
         next = pmd_addr_end(start, end);
 
         pmd_entry = pmd_offset_pmd(pmd, start);
-        kprintf("pmd_entry: %x\n", (unsigned)pmd_entry);
         /* allocate a new pte if not present */
         if (!pmd_present(*pmd_entry)) {
             retval = pmd_alloc_pte(pmd, start);
@@ -270,7 +267,7 @@ int pt_alloc_page(struct page_table *pt, vaddr_t addr, struct pt_page_flags flag
         }
 
         /* assigns the PTE to a PMD entry */
-        pmd_set_pte(pt->pmd, pte, addr);
+        pmd_set_pte(&pt->pmd[pmd_index(addr)], pte);
     }
 
     struct page_flags page_flags = (struct page_flags){
@@ -281,7 +278,7 @@ int pt_alloc_page(struct page_table *pt, vaddr_t addr, struct pt_page_flags flag
         .page_accessed = false,
     };
 
-    pte_set_page(pte, page, addr, page_flags);
+    pte_set_page(&pte[pte_index(addr)], page, page_flags);
     
     return 0;
 }
@@ -314,4 +311,55 @@ paddr_t pt_get_pfn(struct page_table *pt, vaddr_t addr)
         return 0;
 
     return pte_pfn(*pte);
+}
+
+int pt_copy(struct page_table *new, struct page_table *old)
+{
+    pte_t *new_pte, *old_pte;
+    vaddr_t new_page;
+    size_t i, j;
+
+    KASSERT(old->pmd != NULL);
+    KASSERT(new->pmd != NULL);
+
+    // TODO: implement COW of the pages
+    new->pmd = pmd_create_table();
+    if (!new->pmd)
+        return ENOMEM;
+
+    // TODO: refactor, this is just temp, fix flags
+    for (i = 0; i < PTRS_PER_PMD; i++) {
+        if (!pmd_present(old->pmd[i]))
+            continue;
+
+        new_pte = pte_create_table();
+        if (!new_pte)
+            return ENOMEM;
+
+        pmd_set_pte(&new->pmd[i], new_pte);
+
+        old_pte = pmd_ptetable(old->pmd[i]);
+        for (j = 0; j < PTRS_PER_PTE; j++) {
+            if (!pte_present(old_pte[j]))
+                continue;
+
+            new_page = alloc_kpages(1);
+            if (!new_page)
+                return ENOMEM;
+
+            /* copy the old page, this is just temporary */
+            memmove((void *)new_page, (void *)pte_value(old_pte[j]), PAGE_SIZE);
+
+            struct page_flags page_flags = (struct page_flags){
+                .page_present = true,
+                .page_accessed = (pte_flags(old_pte[j]) & PAGE_ACCESSED) == PAGE_ACCESSED,
+                .page_dirty = (pte_flags(old_pte[j]) & PAGE_DIRTY) == PAGE_DIRTY,
+                .page_rw = (pte_flags(old_pte[j]) & PAGE_RW) == PAGE_RW,
+                .page_pwt = (pte_flags(old_pte[j]) & PAGE_PWT) == PAGE_PWT,
+            };
+            pte_set_page(&new_pte[j], new_page, page_flags);
+        }
+    }
+    
+    return 0;
 }

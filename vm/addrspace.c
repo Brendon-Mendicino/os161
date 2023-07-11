@@ -52,10 +52,11 @@ as_create_area(vaddr_t start, vaddr_t end, bool read, bool write, bool exec)
 
 	area->area_start = start;
 	area->area_end = end;
+	/* we use AS_AREA_MAY_WRITE for COW pages */
 	area->area_flags =
-		AS_AREA_EXEC * exec |
-		AS_AREA_READ * read |
-		AS_AREA_WRITE * write;
+		exec * AS_AREA_EXEC |
+		read * (AS_AREA_WRITE | AS_AREA_MAY_WRITE) |
+		write * AS_AREA_WRITE;
 
 	INIT_LIST_HEAD(&area->next_area);
 
@@ -82,6 +83,30 @@ as_add_area(struct addrspace *as, struct addrspace_area *area)
 	return 0;
 }
 
+static int
+as_copy_area(struct addrspace *new, struct addrspace *old)
+{
+	struct addrspace_area *old_area, *new_area;
+
+	KASSERT(list_empty(&new->addrspace_area_list));
+
+	as_for_each_area(old, old_area) {
+		new_area = kmalloc(sizeof(struct addrspace_area));
+		if (!new_area)
+			return ENOMEM;
+
+		memmove(new_area, old_area, sizeof(struct addrspace_area));
+
+		/* adjust the list pointer */
+		INIT_LIST_HEAD(&new_area->next_area);
+
+		/* add it to new list addrspace */
+		as_add_area(new, new_area);
+	}
+
+	return 0;
+}
+
 /*
  * Note! If OPT_DUMBVM is set, as is the case until you start the VM
  * assignment, this file is not compiled or linked or in any way
@@ -102,15 +127,6 @@ as_create(void)
 		return NULL;
 	}
 
-	as->asp_vbase1 = 0;
-	as->asp_pbase1 = 0;
-	as->asp_npages1 = 0;
-	as->asp_vbase2 = 0;
-	as->asp_pbase2 = 0;
-	as->asp_npages2 = 0;
-	as->asp_stackpbase = 0;
-	as->asp_nstackpages = AS_STACKPAGES;
-
 	retval = pt_init(&as->pt);
 	if (retval)
 		return NULL;
@@ -118,21 +134,6 @@ as_create(void)
 	INIT_LIST_HEAD(&as->addrspace_area_list);
 
 	return as;
-}
-
-static void
-as_bad_prepare_load(struct addrspace *as)
-{
-	KASSERT(as != NULL);
-
-	if (as->asp_pbase1)
-		free_kpages(as->asp_pbase1);
-
-	if (as->asp_pbase2)
-		free_kpages(as->asp_pbase2);
-
-	if (as->asp_stackpbase)
-		free_kpages(as->asp_stackpbase);
 }
 
 int
@@ -146,60 +147,42 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 		return ENOMEM;
 	}
 
-	new->asp_vbase1 = old->asp_vbase1;
-	new->asp_npages1 = old->asp_npages1;
-	new->asp_vbase2 = old->asp_vbase2;
-	new->asp_npages2 = old->asp_npages2;
-	new->asp_nstackpages = old->asp_nstackpages;
+	new->start_arg = old->start_arg;
+	new->end_arg = old->end_arg;
+	new->start_stack = old->start_stack;
+	new->end_stack = old->end_stack;
 
-	/* (Mis)use asp_prepare_load to allocate some physical memory. */
-	retval = as_prepare_load(new);
-	if (retval) {
-		/* 
-		 * we cant use asp_destroy because its
-		 * not knows if the pbase where allocated
-		 * correctly.
-		 */
-		as_bad_prepare_load(new);
-		return ENOMEM;
-	}
+	retval = as_copy_area(new, old);
+	if (retval)
+		goto bad_as_copy_area_cleanup;
 
-	KASSERT(new->asp_pbase1 != 0);
-	KASSERT(new->asp_pbase2 != 0);
-	KASSERT(new->asp_stackpbase != 0);
+	retval = pt_copy(&new->pt, &old->pt);
+	if (retval)
+		goto bad_pt_copy_cleanup;
 
-	memmove((void *)new->asp_pbase1,
-		(const void *)old->asp_pbase1,
-		old->asp_npages1*PAGE_SIZE);
-
-	memmove((void *)new->asp_pbase2,
-		(const void *)old->asp_pbase2,
-		old->asp_npages2*PAGE_SIZE);
-
-	memmove((void *)new->asp_stackpbase,
-		(const void *)old->asp_stackpbase,
-		old->asp_nstackpages*PAGE_SIZE);
 
 	*ret = new;
 	return 0;
+
+bad_pt_copy_cleanup:
+	kprintf("Remember to handle COW copy of the old page!\n");
+
+bad_as_copy_area_cleanup:
+	as_destroy(new);
+	return retval;
 }
 
 void
 as_destroy(struct addrspace *as)
 {
+	struct addrspace_area *area, *temp;
 
-	/* as_pbase2 could be 0 */
-	// KASSERT(as->asp_pbase1 != 0);
-	KASSERT(as->asp_stackpbase != 0);
-
-	/* TODO: modify in the future */
-	// free_kpages(as->asp_pbase1);
-	free_kpages(as->asp_stackpbase);
+	// TODO: refactor
+	as_for_each_area_safe(as, area, temp) {
+		kfree(area);
+	}
 
 	pt_destroy(&as->pt);
-
-	// if (as->asp_npages2 > 0)
-	// 	free_kpages(as->asp_pbase2);
 
 	kfree(as);
 }
@@ -267,22 +250,11 @@ as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize,
 	return 0;
 }
 
-static void
-as_zero_region(vaddr_t addr, size_t npages)
-{
-	bzero((void *)addr, npages);
-}
-
 int
 as_prepare_load(struct addrspace *as)
 {
 	int retval;
 	struct addrspace_area *area;
-
-	KASSERT(as->asp_pbase1 == 0);
-	KASSERT(as->asp_pbase2 == 0);
-	KASSERT(as->asp_stackpbase == 0);
-
 
 	as_for_each_area(as, area) {
 		retval = pt_alloc_page_range(&as->pt,
@@ -297,14 +269,14 @@ as_prepare_load(struct addrspace *as)
 			return retval;
 	}
 
-	as->asp_stackpbase = alloc_kpages(as->asp_nstackpages);
-	if (as->asp_stackpbase == 0) {
-		return ENOMEM;
-	}
-
-	// as_zero_region(as->asp_pbase1, as->asp_npages1);
-	// as_zero_region(as->asp_pbase2, as->asp_npages2);
-	as_zero_region(as->asp_stackpbase, as->asp_nstackpages);
+	// TODO: use start_stack, end_stack.
+	/* alloc stack range */
+	retval = pt_alloc_page_range(&as->pt,
+		USERSTACK - AS_STACKPAGES * PAGE_SIZE,
+		USERSTACK,
+		(struct pt_page_flags){ .page_rw = true, .page_pwt = false });
+	if (retval)
+		return retval;
 
 	return 0;
 }
@@ -326,7 +298,6 @@ as_define_stack(struct addrspace *as, vaddr_t *stackptr)
 #if OPT_ARGS
 	KASSERT(as != NULL);
 	KASSERT(as->start_arg != 0);
-	KASSERT(as->asp_stackpbase != 0);
 
 	/* start_arg must be 8byte aligned */
 	*stackptr = as->start_arg;
@@ -364,8 +335,6 @@ int as_define_args(struct addrspace *as, int argc, char **argv, userptr_t *uargv
 	char **user_argv;
 
 	KASSERT(as != NULL);
-	KASSERT(as->asp_nstackpages > 0);
-	KASSERT(as->asp_stackpbase != 0);
 
 	/*
 	 * When allocating the space for the args
