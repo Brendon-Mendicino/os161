@@ -61,7 +61,7 @@ static pte_t *pte_create_table(void)
 {
     pte_t *pte = NULL;
 
-    KASSERT(PTE_TABLE_PAGES == 1);
+    compiletime_assert(PTE_TABLE_PAGES == 1, "The size of a PTE table must be equal to one page");
 
     vaddr_t pte_address = alloc_kpages(PTE_TABLE_PAGES);
     if (!pte_address)
@@ -154,7 +154,7 @@ static pmd_t *pmd_create_table(void)
 {
     pmd_t *pmd = NULL;
 
-    KASSERT(PMD_TABLE_PAGES == 1);
+    compiletime_assert(PMD_TABLE_PAGES == 1, "The size of a PMD table must be equal to one page");
 
     vaddr_t pmd_address = alloc_kpages(PMD_TABLE_PAGES);
     if (!pmd_address)

@@ -113,13 +113,13 @@ fill_deadbeef(void *vptr, size_t len)
  * quite slow in its own right.
  */
 
-#undef  SLOW
-#undef SLOWER
-#undef GUARDS
-#undef LABELS
+#define  SLOW
+#define SLOWER
+#define GUARDS
+#define LABELS
 
-#undef CHECKBEEF
-#undef CHECKGUARDS
+#define CHECKBEEF
+#define CHECKGUARDS
 
 ////////////////////////////////////////
 

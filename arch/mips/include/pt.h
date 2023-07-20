@@ -1,6 +1,7 @@
 #ifndef _ASM_PT_H_
 #define _ASM_PT_H_
 
+#include <compiler_types.h>
 #include <types.h>
 #include <lib.h>
 #include <machine/vm.h>
