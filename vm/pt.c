@@ -280,7 +280,34 @@ void pt_destroy(struct page_table *pt)
     KASSERT(pt->total_pages == 0);
 }
 
-int pt_alloc_page(struct page_table *pt, vaddr_t addr, struct pt_page_flags flags)
+int pt_get_or_alloc_pte(struct page_table *pt, vaddr_t addr, pte_t **pte_entry)
+{
+    pmd_t *pmd_entry;
+    pte_t *pte;
+
+    KASSERT(pt != NULL);
+    KASSERT(pt->pmd != NULL);
+
+
+    pmd_entry = pmd_offset_pmd(pt->pmd, addr);
+    /* get the pte if it exist or create a new one */
+    if (!pmd_present(*pmd_entry)) {
+        pte = pte_create_table();
+        if (!pte)
+            return ENOMEM;
+
+        /* assigns the PTE to a PMD entry */
+        pmd_set_pte(&pt->pmd[pmd_index(addr)], pte);
+    } else {
+        pte = pmd_ptetable(*pmd_entry);
+    }
+
+    *pte_entry = &pte[pte_index(addr)];
+
+    return 0;
+}
+
+int pt_alloc_page(struct page_table *pt, vaddr_t addr, struct pt_page_flags flags, paddr_t *paddr)
 {
     pmd_t *pmd_entry;
     pte_t *pte, *pte_entry;
@@ -321,10 +348,12 @@ int pt_alloc_page(struct page_table *pt, vaddr_t addr, struct pt_page_flags flag
 
         pt->total_pages += 1;
 
-        pte_set_page(&pte[pte_index(addr)], page, page_flags);
+        pte_set_page(pte_entry, page, page_flags);
     } else {
         pte_set_flags(pte_entry, page_flags);
     }
+
+    *paddr = pte_pfn(*pte_entry);
 
     return 0;
 }

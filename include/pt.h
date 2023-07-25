@@ -20,7 +20,9 @@ extern int pt_init(struct page_table *pt);
 
 extern void pt_destroy(struct page_table *pt);
 
-extern int pt_alloc_page(struct page_table *pt, vaddr_t addr, struct pt_page_flags page_flags);
+extern int pt_get_or_alloc_pte(struct page_table *pt, vaddr_t addr, pte_t **pte_entry);
+
+extern int pt_alloc_page(struct page_table *pt, vaddr_t addr, struct pt_page_flags page_flags, paddr_t *paddr);
 
 extern int pt_alloc_page_range(struct page_table *pt, vaddr_t start, vaddr_t end, struct pt_page_flags flags);
 
