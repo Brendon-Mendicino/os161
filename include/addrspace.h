@@ -156,7 +156,7 @@ extern int as_define_args(struct addrspace *as, int argc, char **argv, userptr_t
         __offset = (elf_header)->e_phoff + __index * (elf_header)->e_phentsize,             \
         retval = __read_segment(vnode, __offset, elf_segment))
 
-extern int load_demand_page(struct addrspace *as, vaddr_t fault_address);
+extern int load_demand_page(struct addrspace *as, vaddr_t fault_address, paddr_t paddr);
 #endif // OPT_PAGING
 
 int load_elf(struct vnode *v, vaddr_t *entrypoint);

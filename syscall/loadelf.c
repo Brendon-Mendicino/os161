@@ -75,7 +75,7 @@
  * change this code to not use uiomove, be sure to check for this case
  * explicitly.
  */
-static
+__UNUSED static
 int
 load_segment(struct addrspace *as, struct vnode *v,
 	     off_t offset, vaddr_t vaddr,
@@ -149,6 +149,74 @@ load_segment(struct addrspace *as, struct vnode *v,
 #if OPT_PAGING
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 
+static int load_ksegment(struct vnode *v,
+	     off_t offset, vaddr_t vaddr,
+	     size_t memsize, size_t filesize)
+{
+	struct iovec iov;
+	struct uio u;
+	int result;
+
+	if (filesize > memsize) {
+		kprintf("ELF: warning: segment filesize > segment memsize\n");
+		filesize = memsize;
+	}
+
+	DEBUG(DB_EXEC, "ELF: Loading %lu bytes to 0x%lx\n",
+	      (unsigned long) filesize, (unsigned long) vaddr);
+
+	iov.iov_kbase = (void *)vaddr;
+	iov.iov_len = memsize;		 // length of the memory space
+	u.uio_iov = &iov;
+	u.uio_iovcnt = 1;
+	u.uio_resid = filesize;          // amount to read from the file
+	u.uio_offset = offset;
+	u.uio_segflg = UIO_SYSSPACE;
+	u.uio_rw = UIO_READ;
+	u.uio_space = NULL;
+
+	result = VOP_READ(v, &u);
+	if (result) {
+		return result;
+	}
+
+	if (u.uio_resid != 0) {
+		/* short read; problem with executable? */
+		kprintf("ELF: short read on segment - file truncated?\n");
+		return ENOEXEC;
+	}
+
+	/*
+	 * If memsize > filesize, the remaining space should be
+	 * zero-filled. There is no need to do this explicitly,
+	 * because the VM system should provide pages that do not
+	 * contain other processes' data, i.e., are already zeroed.
+	 *
+	 * During development of your VM system, it may have bugs that
+	 * cause it to (maybe only sometimes) not provide zero-filled
+	 * pages, which can cause user programs to fail in strange
+	 * ways. Explicitly zeroing program BSS may help identify such
+	 * bugs, so the following disabled code is provided as a
+	 * diagnostic tool. Note that it must be disabled again before
+	 * you submit your code for grading.
+	 */
+#if 0
+	{
+		size_t fillamt;
+
+		fillamt = memsize - filesize;
+		if (fillamt > 0) {
+			DEBUG(DB_EXEC, "ELF: Zero-filling %lu more bytes\n",
+			      (unsigned long) fillamt);
+			u.uio_resid += fillamt;
+			result = uiomovezeros(fillamt, &u);
+		}
+	}
+#endif
+
+	return result;
+}
+
 static int load_elf_header(struct vnode *v, Elf_Ehdr *eh)
 {
 	struct uio ku;
@@ -196,17 +264,10 @@ static int load_elf_header(struct vnode *v, Elf_Ehdr *eh)
 	return 0;
 }
 
-static int load_page(struct addrspace *as, Elf_Phdr *ph, vaddr_t address)
+static int load_page(struct addrspace *as, Elf_Phdr *ph, vaddr_t address, paddr_t paddr)
 {
 	int retval;
 	off_t page_offset;
-
-	retval = pt_alloc_page(&as->pt, address, (struct pt_page_flags){
-		.page_rw = false,
-		.page_pwt = false,
-	});
-	if (retval)
-		return retval;
 
 	/*
 	 * Calculate the offset of the page to be
@@ -219,20 +280,18 @@ static int load_page(struct addrspace *as, Elf_Phdr *ph, vaddr_t address)
 	 * only load the demanded page inside memory,
 	 * calculate the size of the page to load inside
 	 */
-	retval = load_segment(as,
-			as->source_file,
+	retval = load_ksegment(as->source_file,
 			ph->p_offset + page_offset,
-			address & PAGE_FRAME,
+			PADDR_TO_KVADDR(paddr),
 			PAGE_SIZE,
-			MIN(ph->p_filesz - page_offset, PAGE_SIZE),
-			ph->p_flags & PF_X);
+			MIN(ph->p_filesz - page_offset, PAGE_SIZE));
 	if (retval)
 		return retval;
 
 	return 0;
 }
 
-int load_demand_page(struct addrspace *as, vaddr_t fault_address)
+int load_demand_page(struct addrspace *as, vaddr_t fault_address, paddr_t paddr)
 {
 	Elf_Ehdr eh;
 	Elf_Phdr ph;
@@ -265,7 +324,7 @@ int load_demand_page(struct addrspace *as, vaddr_t fault_address)
 		 * we load the missing page into memory
 		 * and return to the caller
 		 */
-		retval = load_page(as, &ph, fault_address);
+		retval = load_page(as, &ph, fault_address, paddr);
 		if (retval)
 			return retval;
 

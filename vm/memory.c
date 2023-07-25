@@ -2,17 +2,44 @@
 #include <addrspace.h>
 #include <vm.h>
 #include <current.h>
+#include <proc.h>
 #include <vm_tlb.h>
 #include <kern/errno.h>
 
 
+static int vm_handle_fault(struct addrspace *as, vaddr_t fault_address, paddr_t *paddr)
+{
+    int retval;
+
+    *paddr = pt_get_pfn(&as->pt, fault_address);
+    if (*paddr != 0)
+        return 0;
+
+    // TODO: chage this allocation, use vm_area
+    retval = pt_alloc_page(&as->pt,
+            fault_address,
+            (struct pt_page_flags){
+                .page_pwt = false,
+                .page_rw = true,
+            },
+            paddr);
+    if (retval)
+        return retval;
+
+    // TODO: for now just load the page form the disk, update to handle swap
+    retval = load_demand_page(as, fault_address, *paddr);
+    if (retval)
+        return retval;
+
+
+    return 0;
+}
+
 int vm_fault(int faulttype, vaddr_t faultaddress)
 {
 	paddr_t paddr;
-	int i;
-	uint32_t ehi, elo;
 	struct addrspace *as;
-	int spl, retval;
+	int retval;
 
 	switch (faulttype) {
 	    case VM_FAULT_READONLY:
@@ -43,18 +70,9 @@ int vm_fault(int faulttype, vaddr_t faultaddress)
 		return EFAULT;
 	}
 
-	paddr = pt_get_pfn(&as->pt, faultaddress);
-	/* try to load the page from the source file */
-	if (paddr == 0) {
-		retval = load_demand_page(as, faultaddress);
-		if (retval)
-			return retval;
-
-
-		paddr = pt_get_pfn(&as->pt, faultaddress);
-		if (paddr == 0)
-			return EFAULT;
-	}
+    retval = vm_handle_fault(as, faultaddress, &paddr);
+    if (retval)
+        return retval;
 
 	/* make sure it's page-aligned */
 	KASSERT((paddr & PAGE_FRAME) == paddr);
@@ -62,6 +80,6 @@ int vm_fault(int faulttype, vaddr_t faultaddress)
     retval = vm_tlb_set_page(faultaddress, paddr);
     if (retval) 
         return retval;
-
+        
     return 0;
 }
