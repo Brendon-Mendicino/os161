@@ -9,7 +9,7 @@
 
 /**
  * @brief return a newly created struct file
- * the vnode and the fd must be after the
+ * the vnode and the fd must be set after the
  * file creation.
  * 
  * @return struct file* 
@@ -34,7 +34,7 @@ struct file *file_create(void)
 
     file->offset = 0;
 
-    INIT_REFCOUNT(&file->refcount, 1);
+    file->refcount = REFCOUNT_INIT(1);
     
     return file;
 }
@@ -42,25 +42,11 @@ struct file *file_create(void)
 void file_destroy(struct file *file)
 {
     bool destroy;
-    bool success;
 
     KASSERT(file != NULL);
 
-    lock_acquire(file->file_lock);
-
-    success = refcount_dec_not_zero(&file->refcount);
-    if (!success) {
-        panic("file_destroy: Decreased non-zero refcount\n");
-    }
-
-    if (refcount_read(&file->refcount) > 0) {
-        destroy = false;
-    }
-    else {
-        destroy = true;
-    }
-
-    lock_release(file->file_lock);
+    /* destroy the file if refcount is 0 */
+    destroy = (refcount_dec(&file->refcount) == 0) ? true : false;
 
     if (!destroy)
         return;
@@ -76,13 +62,11 @@ int file_copy(struct file *file, struct file **copy)
 {
     struct file *new;
 
-    lock_acquire(file->file_lock);
     new = file_create();
-    if (!new) {
-        lock_release(file->file_lock);
+    if (!new)
         return ENOMEM;
-    }
 
+    lock_acquire(file->file_lock);
     new->fd = file->fd;
     new->offset = file->offset;
 
@@ -318,9 +302,9 @@ void file_table_clear(struct file_table *ftable)
         if (!file)
             continue;
 
-        file_destroy(file);
         ftable->fd_array[fd] = NULL;
         ftable->open_files -= 1;
+        file_destroy(file);
     }
 
     lock_release(ftable->table_lock);
@@ -352,12 +336,7 @@ int file_table_copy(struct file_table *ftable, struct file_table *copy)
         if (!file)
             continue;
         
-        /* increase reference count */
-        lock_acquire(file->file_lock);
-        retval = refcount_inc_not_zero(&file->refcount);
-        if (!retval)
-            panic("file_table_copy: tryied to increase 0 reference count\n");
-        lock_release(file->file_lock);
+        refcount_inc(&file->refcount);
 
         retval = file_table_add(file, copy);
         if (retval)
