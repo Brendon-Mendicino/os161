@@ -359,6 +359,7 @@ optfile   paging vm/coremap.c
 optfile   paging vm/segments.c
 optfile   paging vm/vm_tlb.c
 optfile   paging vm/vmstats.c
+optfile   paging vm/memory.c
 
 defoption args
 
