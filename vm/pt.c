@@ -112,6 +112,7 @@ static int pte_alloc_page_range(pte_t *pte, vaddr_t start, vaddr_t end, struct p
     KASSERT(alloc_pages != NULL);
     KASSERT(start <= end);
 
+    /* setup the falgs for the page to allocate */
     struct page_flags page_flags = (struct page_flags){
         .page_present = true,
         .page_rw = flags.page_rw,
@@ -282,31 +283,27 @@ void pt_destroy(struct page_table *pt)
 int pt_alloc_page(struct page_table *pt, vaddr_t addr, struct pt_page_flags flags)
 {
     pmd_t *pmd_entry;
-    pte_t *pte;
+    pte_t *pte, *pte_entry;
+    vaddr_t page;
 
     KASSERT(pt != NULL);
     KASSERT(pt->pmd != NULL);
 
-    vaddr_t page = alloc_kpages(1);
-    if (!page)
-        return ENOMEM;
 
-
-    /* get the pte if it exist or create a new one */
     pmd_entry = pmd_offset_pmd(pt->pmd, addr);
-    if (pmd_present(*pmd_entry)) {
-        pte = pmd_ptetable(*pmd_entry);
-    } else {
+    /* get the pte if it exist or create a new one */
+    if (!pmd_present(*pmd_entry)) {
         pte = pte_create_table();
-        if (!pte) {
-            free_kpages(page);
+        if (!pte)
             return ENOMEM;
-        }
 
         /* assigns the PTE to a PMD entry */
         pmd_set_pte(&pt->pmd[pmd_index(addr)], pte);
+    } else {
+        pte = pmd_ptetable(*pmd_entry);
     }
 
+    /* setup the flags of the page */
     struct page_flags page_flags = (struct page_flags){
         .page_present = true,
         .page_rw = flags.page_rw,
@@ -315,9 +312,19 @@ int pt_alloc_page(struct page_table *pt, vaddr_t addr, struct pt_page_flags flag
         .page_accessed = false,
     };
 
-    pte_set_page(&pte[pte_index(addr)], page, page_flags);
-    
-    pt->total_pages += 1;
+    pte_entry = &pte[pte_index(addr)];
+    /* allocate a page if it is not present */
+    if (!pte_present(*pte_entry)) {
+        page = alloc_kpages(1);
+        if (!page)
+            return ENOMEM;
+
+        pt->total_pages += 1;
+
+        pte_set_page(&pte[pte_index(addr)], page, page_flags);
+    } else {
+        pte_set_flags(pte_entry, page_flags);
+    }
 
     return 0;
 }
