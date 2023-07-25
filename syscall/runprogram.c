@@ -89,12 +89,19 @@ int runprogram(int argc, char **argv)
 		return result;
 	}
 
+#if OPT_PAGING
+	/* attach the file to address space */
+	as->source_file = v;
+#else // OPT_PAGING
 	/* Done with the file now. */
 	vfs_close(v);
+#endif // OPT_PAGING
 
+#if OPT_ARGS
 	result = as_define_args(as, argc, argv, &uargv);
 	if (result)
 		return result;
+#endif // OPT_ARGS
 
 	/* Define the user stack in the address space */
 	result = as_define_stack(as, &stackptr);

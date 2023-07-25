@@ -2,6 +2,7 @@
 #define _ADDRSPACE_TYPES_H_
 
 #include <types.h>
+#include <vnode.h>
 #include <pt.h>
 #include "opt-dumbvm.h"
 #include "opt-paging.h"
@@ -61,6 +62,10 @@ struct addrspace {
         vaddr_t start_data, end_data;
         vaddr_t start_stack, end_stack;
 #endif
+
+#if OPT_PAGING
+        struct vnode *source_file;
+#endif // OPT_PAGING
 
 #if OPT_ARGS
         /* args are allocated inside the stack */

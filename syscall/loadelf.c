@@ -59,6 +59,7 @@
 #include <addrspace.h>
 #include <vnode.h>
 #include <elf.h>
+#include <pt.h>
 
 /*
  * Load a segment at virtual address VADDR. The segment in memory
@@ -144,6 +145,138 @@ load_segment(struct addrspace *as, struct vnode *v,
 
 	return result;
 }
+
+#if OPT_PAGING
+#define MIN(a, b) (((a) < (b)) ? (a) : (b))
+
+static int load_elf_header(struct vnode *v, Elf_Ehdr *eh)
+{
+	struct uio ku;
+	struct iovec iov;
+	int result;
+
+	/*
+	 * Read the executable header from offset 0 in the file.
+	 */
+	uio_kinit(&iov, &ku, eh, sizeof(*eh), (off_t)0, UIO_READ);
+	result = VOP_READ(v, &ku);
+	if (result)
+		return result;
+
+	if (ku.uio_resid != 0) {
+		/* short read; problem with executable? */
+		kprintf("ELF: short read on header - file truncated?\n");
+		return ENOEXEC;
+	}
+
+	/*
+	 * Check to make sure it's a 32-bit ELF-version-1 executable
+	 * for our processor type. If it's not, we can't run it.
+	 *
+	 * Ignore EI_OSABI and EI_ABIVERSION - properly, we should
+	 * define our own, but that would require tinkering with the
+	 * linker to have it emit our magic numbers instead of the
+	 * default ones. (If the linker even supports these fields,
+	 * which were not in the original elf spec.)
+	 */
+	if (eh->e_ident[EI_MAG0] != ELFMAG0 ||
+		eh->e_ident[EI_MAG1] != ELFMAG1 ||
+		eh->e_ident[EI_MAG2] != ELFMAG2 ||
+		eh->e_ident[EI_MAG3] != ELFMAG3 ||
+		eh->e_ident[EI_CLASS] != ELFCLASS32 ||
+		eh->e_ident[EI_DATA] != ELFDATA2MSB ||
+		eh->e_ident[EI_VERSION] != EV_CURRENT ||
+		eh->e_version != EV_CURRENT ||
+		eh->e_type != ET_EXEC ||
+		eh->e_machine != EM_MACHINE)
+	{
+		return ENOEXEC;
+	}
+
+	return 0;
+}
+
+static int load_page(struct addrspace *as, Elf_Phdr *ph, vaddr_t address)
+{
+	int retval;
+	off_t page_offset;
+
+	retval = pt_alloc_page(&as->pt, address, (struct pt_page_flags){
+		.page_rw = false,
+		.page_pwt = false,
+	});
+	if (retval)
+		return retval;
+
+	/*
+	 * Calculate the offset of the page to be
+	 * loaded inside the segment
+	 */
+	KASSERT(address >= ph->p_vaddr);
+	page_offset = (address - ph->p_vaddr) - ((address - ph->p_vaddr) % PAGE_SIZE);
+	
+	/*
+	 * only load the demanded page inside memory,
+	 * calculate the size of the page to load inside
+	 */
+	retval = load_segment(as,
+			as->source_file,
+			ph->p_offset + page_offset,
+			address & PAGE_FRAME,
+			PAGE_SIZE,
+			MIN(ph->p_filesz - page_offset, PAGE_SIZE),
+			ph->p_flags & PF_X);
+	if (retval)
+		return retval;
+
+	return 0;
+}
+
+int load_demand_page(struct addrspace *as, vaddr_t fault_address)
+{
+	Elf_Ehdr eh;
+	Elf_Phdr ph;
+	int retval;
+
+	retval = load_elf_header(as->source_file, &eh);
+	if (retval)
+		return retval;
+
+	for_each_segment(retval, as->source_file, &eh, &ph) {
+		if (retval)
+			return retval;
+
+		switch (ph.p_type) {
+		    case PT_NULL: /* skip */ continue;
+		    case PT_PHDR: /* skip */ continue;
+		    case PT_MIPS_REGINFO: /* skip */ continue;
+		    case PT_LOAD: break;
+		    default:
+			kprintf("loadelf: unknown segment type %d\n", ph.p_type);
+			return ENOEXEC;
+		}
+
+		/* check if the fault_address is indside the boundaries of the segment */
+		if (fault_address < ph.p_vaddr || fault_address >= ph.p_vaddr + ph.p_memsz)
+			continue;
+
+		/*
+		 * we found the segment that caused the fault,
+		 * we load the missing page into memory
+		 * and return to the caller
+		 */
+		retval = load_page(as, &ph, fault_address);
+		if (retval)
+			return retval;
+
+		break;
+	}
+
+	return 0;
+}
+#endif // OPT_PAGING
+
+
 
 /*
  * Load an ELF executable user program into the current address space.
@@ -253,10 +386,14 @@ load_elf(struct vnode *v, vaddr_t *entrypoint)
 		}
 	}
 
+#if OPT_PAGING
+	// TODO: see later
+#else // OPT_PAGING
 	result = as_prepare_load(as);
 	if (result) {
 		return result;
 	}
+#endif // OPT_PAGING
 
 	/*
 	 * Now actually load each segment.
@@ -288,12 +425,26 @@ load_elf(struct vnode *v, vaddr_t *entrypoint)
 			return ENOEXEC;
 		}
 
+#if OPT_PAGING
+		/**
+		 * load at most one page, the
+		 * demand paging will take care of
+		 * loading the other pages
+		 */
+		// result = load_segment(as, 
+		// 		v, 
+		// 		ph.p_offset, 
+		// 		ph.p_vaddr,
+		// 		PAGE_SIZE, 
+		// 		MIN(ph.p_filesz, PAGE_SIZE),
+		// 		ph.p_flags & PF_X);
+#else // OPT_PAGING
 		result = load_segment(as, v, ph.p_offset, ph.p_vaddr,
 				      ph.p_memsz, ph.p_filesz,
 				      ph.p_flags & PF_X);
-		if (result) {
+#endif // OPT_PAGING
+		if (result)
 			return result;
-		}
 	}
 
 	result = as_complete_load(as);

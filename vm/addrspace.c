@@ -133,6 +133,16 @@ as_create(void)
 
 	INIT_LIST_HEAD(&as->addrspace_area_list);
 
+	as->source_file = NULL;
+
+	/* initialize stack region */
+	as->start_stack = 0;
+	as->end_stack = 0;
+
+	/* initialize args region */
+	as->start_arg = 0;
+	as->end_arg = 0;
+
 	return as;
 }
 
@@ -186,6 +196,10 @@ as_destroy(struct addrspace *as)
 	KASSERT(list_empty(&as->addrspace_area_list));
 
 	pt_destroy(&as->pt);
+
+#if OPT_PAGING
+	vfs_close(as->source_file);
+#endif // OPT_PAGING
 
 	kfree(as);
 }
@@ -274,12 +288,12 @@ as_prepare_load(struct addrspace *as)
 
 	// TODO: use start_stack, end_stack.
 	/* alloc stack range */
-	retval = pt_alloc_page_range(&as->pt,
-		USERSTACK - AS_STACKPAGES * PAGE_SIZE,
-		USERSTACK,
-		(struct pt_page_flags){ .page_rw = true, .page_pwt = false });
-	if (retval)
-		return retval;
+	// retval = pt_alloc_page_range(&as->pt,
+	// 	USERSTACK - AS_STACKPAGES * PAGE_SIZE,
+	// 	USERSTACK,
+	// 	(struct pt_page_flags){ .page_rw = true, .page_pwt = false });
+	// if (retval)
+	// 	return retval;
 
 	return 0;
 }
@@ -299,11 +313,29 @@ int
 as_define_stack(struct addrspace *as, vaddr_t *stackptr)
 {
 #if OPT_ARGS
-	KASSERT(as != NULL);
-	KASSERT(as->start_arg != 0);
+	int retval;
 
+	KASSERT(as != NULL);
+
+	KASSERT(as->start_arg != 0);
+	KASSERT((as->start_arg & 0x8) == 0); 
+	KASSERT(as->end_arg != 0);
+
+	KASSERT(as->start_stack == 0);
+	KASSERT(as->end_stack == 0);
+
+	as->start_stack = USERSTACK - AS_STACKPAGES * PAGE_SIZE;
 	/* start_arg must be 8byte aligned */
-	*stackptr = as->start_arg;
+	as->end_stack = as->start_arg;
+
+	retval = pt_alloc_page_range(&as->pt, as->start_stack, as->end_stack, (struct pt_page_flags){
+		.page_rw = true,
+		.page_pwt = false,
+	});
+	if (retval)
+		return retval;
+
+	*stackptr = as->end_stack;
 
 	return 0;
 #else // OPT_ARGS
@@ -315,6 +347,11 @@ as_define_stack(struct addrspace *as, vaddr_t *stackptr)
 
 	return 0;
 #endif // OPT_ARGS
+}
+
+int as_handle_fault(struct addrspace *as, vaddr_t fault_address)
+{
+	return 0;
 }
 
 
@@ -336,6 +373,7 @@ int as_define_args(struct addrspace *as, int argc, char **argv, userptr_t *uargv
 	size_t arg_map_size = 0;
 	size_t offset = 0;
 	char **user_argv;
+	int retval;
 
 	KASSERT(as != NULL);
 
@@ -361,6 +399,14 @@ int as_define_args(struct addrspace *as, int argc, char **argv, userptr_t *uargv
 	as->start_arg = USERSPACETOP - arg_map_size;
 	/* end is not inclusive */
 	as->end_arg = as->start_arg + arg_map_size;
+
+	/* allocate the page for the required space */
+	retval = pt_alloc_page_range(&as->pt, as->start_arg, as->end_arg, (struct pt_page_flags){
+		.page_rw = true,
+		.page_pwt = false,
+	});
+	if (retval)
+		return retval;
 
 	KASSERT(as->start_arg < as->end_arg);
 

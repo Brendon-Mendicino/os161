@@ -131,6 +131,34 @@ extern int as_define_args(struct addrspace *as, int argc, char **argv, userptr_t
  *               in the space pointed to by ENTRYPOINT.
  */
 
+#if OPT_PAGING
+#define __read_segment(vnode, offset, elf_segment) \
+({                              \
+    struct iovec iovec;                 \
+    struct uio ku;                      \
+    int retval;                         \
+    uio_kinit(&iovec, &ku, (elf_segment), sizeof(*(elf_segment)), offset, UIO_READ);    \
+    retval = VOP_READ(vnode, &ku);      \
+    if (ku.uio_resid != 0 && !retval) {            \
+        /* short read; problem with executable? */      \
+        kprintf("ELF: short read on phdr - file truncated?\n");     \
+        retval = ENOEXEC;           \
+    }                               \
+    retval;                         \
+})
+
+#define for_each_segment(retval, vnode, elf_header, elf_segment)                            \
+    for(off_t __index = 0,                                                                  \
+        __offset = (elf_header)->e_phoff + __index * (elf_header)->e_phentsize,             \
+        retval = __read_segment(vnode, __offset, elf_segment);                              \
+        __index < (elf_header)->e_phnum;                                                    \
+        __index += 1,                                                                       \
+        __offset = (elf_header)->e_phoff + __index * (elf_header)->e_phentsize,             \
+        retval = __read_segment(vnode, __offset, elf_segment))
+
+extern int load_demand_page(struct addrspace *as, vaddr_t fault_address);
+#endif // OPT_PAGING
+
 int load_elf(struct vnode *v, vaddr_t *entrypoint);
 
 
