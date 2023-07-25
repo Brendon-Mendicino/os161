@@ -162,6 +162,9 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 	new->start_stack = old->start_stack;
 	new->end_stack = old->end_stack;
 
+	VOP_INCREF(old->source_file);
+	new->source_file = old->source_file;
+
 	retval = as_copy_area(new, old);
 	if (retval)
 		goto bad_as_copy_area_cleanup;
@@ -318,7 +321,7 @@ as_define_stack(struct addrspace *as, vaddr_t *stackptr)
 	KASSERT(as != NULL);
 
 	KASSERT(as->start_arg != 0);
-	KASSERT((as->start_arg & 0x8) == 0); 
+	KASSERT((as->start_arg & (0x8 - 1)) == 0); 
 	KASSERT(as->end_arg != 0);
 
 	KASSERT(as->start_stack == 0);
@@ -348,12 +351,6 @@ as_define_stack(struct addrspace *as, vaddr_t *stackptr)
 	return 0;
 #endif // OPT_ARGS
 }
-
-int as_handle_fault(struct addrspace *as, vaddr_t fault_address)
-{
-	return 0;
-}
-
 
 #if OPT_ARGS
 /**
