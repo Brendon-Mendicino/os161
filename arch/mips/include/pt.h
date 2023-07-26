@@ -12,27 +12,17 @@
 #define _PAGE_BIT_ACCESSED  5    /* was accessed (raised by CPU) */
 #define _PAGE_BIT_DIRTY     6    /* was written to (raised by CPU) */
 
-#define PAGE_PRESENT    (1 << _PAGE_BIT_PRESENT)
-#define PAGE_RW         (1 << _PAGE_BIT_RW)
-#define PAGE_PWT        (1 << _PAGE_BIT_PWT)
-#define PAGE_ACCESSED   (1 << _PAGE_BIT_ACCESSED)
-#define PAGE_DIRTY      (1 << _PAGE_BIT_DIRTY)
+typedef enum pteflags_t {
+    PAGE_PRESENT    = (1 << _PAGE_BIT_PRESENT),     /* is present */
+    PAGE_RW         = (1 << _PAGE_BIT_RW),          /* writeable */
+    PAGE_PWT        = (1 << _PAGE_BIT_PWT),         /* page write through */
+    PAGE_ACCESSED   = (1 << _PAGE_BIT_ACCESSED),    /* was accessed (raised by CPU) */
+    PAGE_DIRTY      = (1 << _PAGE_BIT_DIRTY),       /* was written to (raised by CPU) */
+} pteflags_t;
 
-
-/**
- * @brief used to set each bit of a page.
- */
-struct page_flags {
-    bool page_present ;    /* is present */                     
-    bool page_rw      ;    /* writeable */
-    bool page_pwt     ;    /* page write through */
-    bool page_accessed;    /* was accessed (raised by CPU) */
-    bool page_dirty   ;    /* was written to (raised by CPU) */
-};
-
-
-typedef size_t pteflags_t;
-typedef size_t pmdflags_t;
+typedef enum pmdflags_t {
+    _PTE_PRESENT    = (1 << _PAGE_BIT_PRESENT),      /* is present */
+} pmdflags_t;
 
 
 /*
@@ -145,18 +135,29 @@ static inline size_t pte_index(vaddr_t addr)
     return (size_t)((addr >> PTE_SHIFT) & PTE_INDEX_MASK);
 }
 
-static inline void pte_set_flags(pte_t *pte, struct page_flags flags)
+static inline void pte_set_flags(pte_t *pte, pteflags_t flags)
 {
-    pte->pteflags |= (pteflags_t)(flags.page_present * PAGE_PRESENT) |
-        (flags.page_rw * PAGE_RW) |
-        (flags.page_pwt * PAGE_PWT) |
-        (flags.page_accessed * PAGE_ACCESSED) |
-        (flags.page_dirty * PAGE_DIRTY);
+    pte->pteflags |= flags;
+}
+
+static inline void pte_clear_flags(pte_t *pte)
+{
+    pte->pteflags &= ~PTE_FLAGS_MASK;
+}
+
+static inline void pte_clear(pte_t *pte)
+{
+    pte->pteval = 0;
+}
+
+static inline bool pte_none(pte_t pte)
+{
+    return pte.pteval == 0;
 }
 
 static inline bool pte_present(pte_t pte)
 {
-    return pte_flags(pte) & PAGE_PRESENT ? true : false;
+    return (pte_flags(pte) & PAGE_PRESENT) == PAGE_PRESENT;
 }
 
 /**
@@ -171,14 +172,13 @@ static inline void pte_clean_table(pte_t *pte)
 
 /**
  * @brief assigns a page to a pte entry given an page address and
- * his flags, all previus flags are set to 0.
+ * his flags, all previus flags are cleared.
  * 
  * @param pte PTE table
  * @param page_addr address of the physical page
- * @param addr virtual address
  * @param flags page flags
  */
-static inline void pte_set_page(pte_t *pte_entry, vaddr_t page_addr, struct page_flags flags)
+static inline void pte_set_page(pte_t *pte_entry, vaddr_t page_addr, pteflags_t flags)
 { 
     KASSERT(!pte_present(*pte_entry));
 
@@ -187,7 +187,7 @@ static inline void pte_set_page(pte_t *pte_entry, vaddr_t page_addr, struct page
     /* assign the pte pointer */
     pte_entry->pteval |= page_addr & (~PTE_FLAGS_MASK);
 
-    pte_entry->pteflags &= ~PTE_FLAGS_MASK;
+    pte_clear_flags(pte_entry);
     pte_set_flags(pte_entry, flags);
 }
 
@@ -254,25 +254,34 @@ static inline size_t pmd_index(vaddr_t addr)
     return (size_t)((addr >> PMD_SHIFT) & PMD_INDEX_MASK);
 }
 
-/**
- * @brief only set page present
- * 
- * @param pmd 
- * @param flags 
- */
-static inline void pmd_set_flags(pmd_t *pmd, struct page_flags flags)
+static inline void pmd_clear_flags(pmd_t *pmd)
 {
-    pmd->pmdval |= (pmdflags_t)flags.page_present * PAGE_PRESENT;
+    pmd->pmdflags &= ~PMD_FLAGS_MASK;
 }
 
-static inline size_t pmd_present(pmd_t pmd)
+static inline void pmd_set_flags(pmd_t *pmd, pmdflags_t flags)
 {
-    return pmd_flags(pmd) & PAGE_PRESENT;
+    pmd->pmdflags |= flags;
+}
+
+static inline void pmd_clear(pmd_t *pmd)
+{
+    pmd->pmdval = 0;
+}
+
+static inline bool pmd_none(pmd_t pmd)
+{
+    return pmd.pmdval == 0;
+}
+
+static inline bool pmd_present(pmd_t pmd)
+{
+    return (pmd_flags(pmd) & _PTE_PRESENT) == _PTE_PRESENT;
 }
 
 static inline void pmd_set_present(pmd_t *pmd)
 {
-    pmd->pmdflags |= PAGE_PRESENT;
+    pmd->pmdflags |= _PTE_PRESENT;
 }
 
 /**

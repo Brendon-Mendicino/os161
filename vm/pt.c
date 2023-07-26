@@ -94,6 +94,7 @@ static size_t pte_free_table(pte_t *pte)
             continue;
 
         free_kpages(pte_value(pte[i]));
+        pte_clear(&pte[i]);
         freed_pages += 1;
     }
 
@@ -104,39 +105,40 @@ static size_t pte_free_table(pte_t *pte)
 
 static int pte_alloc_page_range(pte_t *pte, vaddr_t start, vaddr_t end, struct pt_page_flags flags, size_t *alloc_pages)
 {
-    vaddr_t curr_addr;
     vaddr_t page;
     size_t pmd_curr_index;
+    pte_t *pte_entry;
 
     KASSERT(pte != NULL);
     KASSERT(alloc_pages != NULL);
     KASSERT(start <= end);
 
     /* setup the falgs for the page to allocate */
-    struct page_flags page_flags = (struct page_flags){
-        .page_present = true,
-        .page_rw = flags.page_rw,
-        .page_pwt = flags.page_pwt,
-        .page_accessed = false,
-        .page_dirty = false,
-    };
+    pteflags_t page_flags = PAGE_PRESENT |
+            (flags.page_rw * PAGE_RW) |
+            (flags.page_pwt * PAGE_PWT); 
 
-    for (curr_addr = start, pmd_curr_index = pmd_index(start);
-            curr_addr < end && pmd_curr_index == pmd_index(curr_addr);
-            curr_addr += PAGE_SIZE)
+    for (pmd_curr_index = pmd_index(start),
+            pte_entry = &pte[pte_index(start)];
+            start < end && pmd_curr_index == pmd_index(start);
+            start += PAGE_SIZE,
+            pte_entry = &pte[pte_index(start)])
     {
-        if (pte_present(pte[pte_index(curr_addr)])) {
-            pte_set_flags(&pte[pte_index(curr_addr)], page_flags);
+        if (pte_present(*pte_entry)) {
+            // pte_clear_flags(pte_entry);
+            // pte_set_flags(pte_entry, page_flags);
             continue;
         }
 
+        // TODO: zero filled page
         page = alloc_kpages(1);
         if (!page)
             return ENOMEM;
 
         *alloc_pages += 1;
 
-        pte_set_page(&pte[pte_index(curr_addr)], page, page_flags);
+        memset((void *)page, 0, PAGE_SIZE);
+        pte_set_page(pte_entry, page, page_flags);
     }
 
     return 0;
@@ -173,7 +175,7 @@ static pmd_t *pmd_create_table(void)
  * @brief freed the pmd table and return the number of freed
  * pages
  * 
- * @param pmd 
+ * @param pmd table
  * @return size_t number of freed pages
  */
 static size_t pmd_free_table(pmd_t *pmd)
@@ -188,6 +190,7 @@ static size_t pmd_free_table(pmd_t *pmd)
             continue;
 
         freed_pages += pte_free_table(pmd_ptetable(pmd[i]));
+        pmd_clear(&pmd[i]);
     }
 
     free_kpages((vaddr_t)pmd);
@@ -196,7 +199,7 @@ static size_t pmd_free_table(pmd_t *pmd)
 }
 
 /**
- * @brief Allocates a pte and it is assigned to the pmd
+ * @brief Allocates a pte and it get assigned to the pmd table
  * 
  * @param pmd pmd table
  * @param addr address
@@ -280,6 +283,15 @@ void pt_destroy(struct page_table *pt)
     KASSERT(pt->total_pages == 0);
 }
 
+/**
+ * @brief get the current pte to a specific address if present,
+ * otherwise allocate a new table in the process.
+ * 
+ * @param pt page table
+ * @param addr address to the pte
+ * @param pte_entry return pte value
+ * @return int error if any
+ */
 int pt_get_or_alloc_pte(struct page_table *pt, vaddr_t addr, pte_t **pte_entry)
 {
     pmd_t *pmd_entry;
@@ -297,12 +309,10 @@ int pt_get_or_alloc_pte(struct page_table *pt, vaddr_t addr, pte_t **pte_entry)
             return ENOMEM;
 
         /* assigns the PTE to a PMD entry */
-        pmd_set_pte(&pt->pmd[pmd_index(addr)], pte);
-    } else {
-        pte = pmd_ptetable(*pmd_entry);
+        pmd_set_pte(pmd_entry, pte);
     }
 
-    *pte_entry = &pte[pte_index(addr)];
+    *pte_entry = pte_offset(pmd_entry, addr);
 
     return 0;
 }
@@ -316,8 +326,11 @@ int pt_alloc_page(struct page_table *pt, vaddr_t addr, struct pt_page_flags flag
     KASSERT(pt != NULL);
     KASSERT(pt->pmd != NULL);
 
+    pteflags_t page_flags = PAGE_PRESENT | 
+            (flags.page_rw * PAGE_RW) |
+            (flags.page_pwt * PAGE_PWT);
 
-    pmd_entry = pmd_offset_pmd(pt->pmd, addr);
+    pmd_entry = pmd_offset(pt, addr);
     /* get the pte if it exist or create a new one */
     if (!pmd_present(*pmd_entry)) {
         pte = pte_create_table();
@@ -325,31 +338,23 @@ int pt_alloc_page(struct page_table *pt, vaddr_t addr, struct pt_page_flags flag
             return ENOMEM;
 
         /* assigns the PTE to a PMD entry */
-        pmd_set_pte(&pt->pmd[pmd_index(addr)], pte);
-    } else {
-        pte = pmd_ptetable(*pmd_entry);
-    }
+        pmd_set_pte(pmd_entry, pte);
+    } 
 
-    /* setup the flags of the page */
-    struct page_flags page_flags = (struct page_flags){
-        .page_present = true,
-        .page_rw = flags.page_rw,
-        .page_pwt = flags.page_rw,
-        .page_dirty = false,
-        .page_accessed = false,
-    };
-
-    pte_entry = &pte[pte_index(addr)];
+    pte_entry = pte_offset(pmd_entry, addr);
     /* allocate a page if it is not present */
     if (!pte_present(*pte_entry)) {
+        // TODO: zero filled page
         page = alloc_kpages(1);
         if (!page)
             return ENOMEM;
 
         pt->total_pages += 1;
 
+        memset((void *)page, 0, PAGE_SIZE);
         pte_set_page(pte_entry, page, page_flags);
     } else {
+        pte_clear_flags(pte_entry);
         pte_set_flags(pte_entry, page_flags);
     }
 
@@ -385,12 +390,14 @@ int pt_alloc_page_range(struct page_table *pt, vaddr_t start, vaddr_t end, struc
  */
 paddr_t pt_get_pfn(struct page_table *pt, vaddr_t addr)
 {
-    pmd_t *pmd = pmd_offset(pt, addr);
+    pmd_t *pmd;
+    pte_t *pte;
     
+    pmd = pmd_offset(pt, addr);
     if (!pmd_present(*pmd))
         return 0;
 
-    pte_t *pte = pte_offset(pmd, addr);
+    pte = pte_offset(pmd, addr);
     if (!pte_present(*pte))
         return 0;
 
@@ -433,14 +440,8 @@ int pt_copy(struct page_table *new, struct page_table *old)
             /* copy the old page, this is just temporary */
             memmove((void *)new_page, (void *)pte_value(old_pte[j]), PAGE_SIZE);
 
-            struct page_flags page_flags = (struct page_flags){
-                .page_present = (pte_flags(old_pte[j]) & PAGE_PRESENT) == PAGE_PRESENT,
-                .page_accessed = (pte_flags(old_pte[j]) & PAGE_ACCESSED) == PAGE_ACCESSED,
-                .page_dirty = (pte_flags(old_pte[j]) & PAGE_DIRTY) == PAGE_DIRTY,
-                .page_rw = (pte_flags(old_pte[j]) & PAGE_RW) == PAGE_RW,
-                .page_pwt = (pte_flags(old_pte[j]) & PAGE_PWT) == PAGE_PWT,
-            };
-            pte_set_page(&new_pte[j], new_page, page_flags);
+            /* copy the flags */
+            pte_set_page(&new_pte[j], new_page, pte_flags(old_pte[j]));
         }
     }
 
