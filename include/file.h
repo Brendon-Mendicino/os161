@@ -33,6 +33,10 @@ extern struct file *file_create(void);
 
 extern void file_destroy(struct file *file);
 
+extern int file_read(struct file *file, void *kbuf, size_t nbyte, size_t *byte_read);
+
+extern int file_write(struct file *file, void *kbuf, size_t nbyte, size_t *byte_wrote);
+
 extern int file_copy(struct file *file, struct file **copy);
 
 extern void file_add_offset(struct file *file, off_t offset);

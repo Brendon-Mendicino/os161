@@ -4,6 +4,7 @@
 #include <spinlock.h>
 #include <lib.h>
 #include <limits.h>
+#include <uio.h>
 #include <kern/fcntl.h>
 #include <kern/errno.h>
 
@@ -56,6 +57,54 @@ void file_destroy(struct file *file)
     vfs_close(file->vnode);
 
     kfree(file);
+}
+
+int file_read(struct file *file, void *kbuf, size_t nbyte, size_t *byte_read)
+{
+    struct iovec iovec;
+    struct uio uio;
+    int retval;
+
+    KASSERT(file != NULL);
+
+    lock_acquire(file->file_lock);
+    uio_kinit(&iovec, &uio, kbuf, nbyte, file->offset, UIO_READ);
+
+    retval = VOP_READ(file->vnode, &uio);
+    if (retval) {
+        lock_release(file->file_lock);
+        return retval;
+    }
+
+    /* check if all the bytes were read */
+    *byte_read = nbyte - uio.uio_resid;
+    file->offset += (off_t)*byte_read;
+    lock_release(file->file_lock);
+
+    return 0;
+}
+
+int file_write(struct file *file, void *kbuf, size_t nbyte, size_t *byte_wrote)
+{
+    struct iovec iovec;
+    struct uio uio;
+    int retval;
+
+    lock_acquire(file->file_lock);
+    uio_kinit(&iovec, &uio, kbuf, nbyte, file->offset, UIO_WRITE);
+
+    retval = VOP_WRITE(file->vnode, &uio);
+    if (retval) {
+        lock_release(file->file_lock);
+        return retval;
+    }
+
+    /* check if all the bytes were written */
+    *byte_wrote = nbyte - uio.uio_resid;
+    file->offset += (off_t)*byte_wrote;
+    lock_release(file->file_lock);
+
+    return 0;
 }
 
 int file_copy(struct file *file, struct file **copy)

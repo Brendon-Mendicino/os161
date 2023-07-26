@@ -16,8 +16,6 @@ int sys_write(int fd, const_userptr_t buf, size_t nbyte, size_t *size_wrote)
 #if OPT_SYSFS
     struct proc *curr;
     struct file *file;
-    struct iovec iovec;
-    struct uio uio;
     void *kbuf;
     int result;
 
@@ -25,32 +23,24 @@ int sys_write(int fd, const_userptr_t buf, size_t nbyte, size_t *size_wrote)
 
     curr = curproc;
 
-    kbuf = kmalloc(nbyte);
-    if (!kbuf)
-        return ENOMEM;
-
     file = proc_get_file(curr, fd);
     if (!file)
         return ENOENT;
 
+    kbuf = kmalloc(nbyte);
+    if (!kbuf)
+        return ENOMEM;
+
     /* copy from userspace to kernel buffer */
     result = copyin(buf, kbuf, nbyte);
     if (result)
-        return result;
+        goto out;
 
-    uio_kinit(&iovec, &uio, kbuf, nbyte, file_read_offset(file), UIO_WRITE);
+    result = file_write(file, kbuf, nbyte, size_wrote);
 
-    result = VOP_WRITE(file->vnode, &uio);
-    if (result)
-        return result;
-
-    /* check if all the bytes were written */
-    *size_wrote = nbyte - uio.uio_resid;
-    file_add_offset(file, (off_t)*size_wrote);
-
+out:
     kfree(kbuf);
-
-    return 0;
+    return result;
 #else // OPT_SYSFS
     if (fd != STDOUT_FILENO && fd != STDERR_FILENO)
     {
@@ -72,8 +62,6 @@ int sys_read(int fd, userptr_t buf, size_t nbyte, size_t *size_read)
 #if OPT_SYSFS
     struct proc *curr;
     struct file *file;
-    struct iovec iovec;
-    struct uio uio;
     void *kbuf;
     int result;
 
@@ -81,30 +69,23 @@ int sys_read(int fd, userptr_t buf, size_t nbyte, size_t *size_read)
 
     curr = curproc;
 
-    kbuf = kmalloc(nbyte);
-    if (!kbuf)
-        return ENOMEM;
-
     file = proc_get_file(curr, fd);
     if (!file)
         return ENOENT;
 
-    uio_kinit(&iovec, &uio, kbuf, nbyte, file_read_offset(file), UIO_READ);
+    kbuf = kmalloc(nbyte);
+    if (!kbuf)
+        return ENOMEM;
 
-    result = VOP_READ(file->vnode, &uio);
+    result = file_read(file, kbuf, nbyte, size_read);
     if (result)
-        return result;
+        goto out;
 
     result = copyout(kbuf, buf, nbyte);
-    if (result)
-        return result;
 
-    /* check if all the bytes were read */
-    *size_read = nbyte - uio.uio_resid;
-    file_add_offset(file, (off_t)*size_read);
-
-    return 0;
-
+out:
+    kfree(kbuf);
+    return result;
 #else // OPT_SYSFS
     if (fd != STDOUT_FILENO && fd != STDERR_FILENO)
     {
