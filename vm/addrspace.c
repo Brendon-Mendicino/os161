@@ -54,15 +54,22 @@ as_create_area(vaddr_t start, vaddr_t end, bool read, bool write, bool exec)
 	area->area_end = end;
 	/* we use AS_AREA_MAY_WRITE for COW pages */
 	area->area_flags =
-		exec * AS_AREA_EXEC |
-		read * (AS_AREA_WRITE | AS_AREA_MAY_WRITE) |
-		write * AS_AREA_WRITE;
+		(exec * AS_AREA_EXEC) |
+		(read * AS_AREA_WRITE) |
+		(write * AS_AREA_WRITE);
 
 	INIT_LIST_HEAD(&area->next_area);
 
 	return area;
 }
 
+static void
+as_destroy_area(struct addrspace_area *as_area)
+{
+	KASSERT(list_empty(&as_area->next_area));
+
+	kfree(as_area);
+}
 
 static int
 as_add_area(struct addrspace *as, struct addrspace_area *area)
@@ -190,19 +197,16 @@ as_destroy(struct addrspace *as)
 {
 	struct addrspace_area *area, *temp;
 
-	// TODO: refactor
 	as_for_each_area_safe(as, area, temp) {
-		list_del(&area->next_area);
-		kfree(area);
+		list_del_init(&area->next_area);
+		as_destroy_area(area);
 	}
 
 	KASSERT(list_empty(&as->addrspace_area_list));
 
 	pt_destroy(&as->pt);
 
-#if OPT_PAGING
 	vfs_close(as->source_file);
-#endif // OPT_PAGING
 
 	kfree(as);
 }
@@ -281,22 +285,13 @@ as_prepare_load(struct addrspace *as)
 				area->area_start,
 				area->area_end,
 				(struct pt_page_flags){
-					.page_rw = area->area_flags & AS_AREA_READ ? true : false,
+					.page_rw = (area->area_flags & AS_AREA_READ) ? true : false,
 					.page_pwt = false,
 				});
 
 		if (retval)
 			return retval;
 	}
-
-	// TODO: use start_stack, end_stack.
-	/* alloc stack range */
-	// retval = pt_alloc_page_range(&as->pt,
-	// 	USERSTACK - AS_STACKPAGES * PAGE_SIZE,
-	// 	USERSTACK,
-	// 	(struct pt_page_flags){ .page_rw = true, .page_pwt = false });
-	// if (retval)
-	// 	return retval;
 
 	return 0;
 }

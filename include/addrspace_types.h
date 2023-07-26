@@ -58,17 +58,13 @@ struct addrspace {
 
         struct list_head addrspace_area_list;
 
-        vaddr_t start_code, end_code;
-        vaddr_t start_data, end_data;
-        vaddr_t start_stack, end_stack;
-#endif
-
-#if OPT_PAGING
         struct vnode *source_file;
+
+        vaddr_t start_stack, end_stack;
 #endif // OPT_PAGING
 
 #if OPT_ARGS
-        /* args are allocated inside the stack */
+        /* args are allocated before the stack */
         vaddr_t start_arg, end_arg;
 #endif // OPT_ARGS
 };
