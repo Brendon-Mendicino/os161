@@ -70,6 +70,8 @@
         "emufs.h": "c",
         "emu.h": "c",
         "vm_tlb.h": "c",
-        "errmsg.h": "c"
+        "errmsg.h": "c",
+        "page.h": "c",
+        "getorder.h": "c"
     }
 }

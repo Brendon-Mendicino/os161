@@ -80,6 +80,11 @@ static inline paddr_t kvaddr_to_paddr(vaddr_t addr)
 	return (paddr_t)addr - MIPS_KSEG0;
 }
 
+static inline size_t kvaddr_to_pfn(vaddr_t addr)
+{
+	return kvaddr_to_paddr(addr) >> PAGE_SHIFT;
+}
+
 /*
  * The top of user space. (Actually, the address immediately above the
  * last valid user address.)

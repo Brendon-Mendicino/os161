@@ -4,6 +4,8 @@
 #include <types.h>
 #include <vnode.h>
 #include <pt.h>
+#include <refcount.h>
+#include <list.h>
 #include "opt-dumbvm.h"
 #include "opt-paging.h"
 #include "opt-args.h"
@@ -11,6 +13,36 @@
 
 
 #if OPT_PAGING
+/**
+ * @brief This are the struct page flags,
+ * they identify in which state a page is in the system.
+ * 
+ */
+typedef enum page_flags_t {
+        PGF_INIT,       /* The page has been just initialized */
+        PGF_BUDDY,      /* The page is inside the buddy allocator */
+        PGF_KERN,
+        PGF_USER,
+} page_flags_t;
+
+
+/*
+ * Each physical page in the system has a struct page associated with
+ * it to keep track of whatever it is we are using the page for at the
+ * moment. Note that we have no way to track which tasks are using
+ * a page.
+ *
+ */
+struct page {
+        page_flags_t    flags;
+
+        struct list_head buddy_list;
+
+        refcount_t      _mapcount;    /* User usage count, increased when a page becomes COW */
+        vaddr_t         virtual;        /* Kernel virtual address (NULL if not kmapped) */
+};
+
+
 typedef enum area_flags_t {
         AS_AREA_WRITE        = 1 << 0,
         AS_AREA_READ         = 1 << 1,

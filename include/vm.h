@@ -36,13 +36,56 @@
  * You'll probably want to add stuff here.
  */
 
-
+#include <addrspace_types.h>
 #include <machine/vm.h>
 
 /* Fault-type arguments to vm_fault() */
 #define VM_FAULT_READ        0    /* A read was attempted */
 #define VM_FAULT_WRITE       1    /* A write was attempted */
 #define VM_FAULT_READONLY    2    /* A write to a readonly page was attempted*/
+
+
+
+/*
+ * In OS161 the RAM size is very limited, so we keep the size
+ * of the buddy allocator order low to not loose many pages
+ * in the process, this is due to the fact that is more complicated
+ * to manage the last pages, that will not be aligned with the
+ * last order, and further cheks are required to to not place
+ * pages out of memory.
+ */
+#define MAX_ORDER       (6)    /* Max order (power of 2) of the buddy allocator, included */
+
+
+/**
+ * Represent a level in the buddy allocator,
+ * every level contais a list of free pages that can
+ * be: merged, expaned or removed.
+ */
+struct free_area {
+    /*
+     * List of pages, each page in the list represent the buddy
+     * the relative order, this done by looking at the bits in
+     * the address, i.e. in the 0th level we only consider
+     * the page_number, at the 1st level the page_number >> 1
+     * and so on...
+     */
+    struct list_head    free_list;
+    size_t              n_free;         /* Number of pages in the free_list */
+};
+
+
+struct zone {
+    vaddr_t first_valid_addr;
+    vaddr_t last_valid_addr;
+    struct free_area    free_area[MAX_ORDER + 1];
+};
+
+#define for_each_free_area(free_area_list, free_area, order)    \
+        for (order = 0, free_area = &free_area_list[order];     \
+            order <= MAX_ORDER;                                 \
+            order += 1, free_area = &free_area_list[order]) 
+
 
 
 /* Initialization function */
@@ -60,5 +103,6 @@ void vm_tlbshootdown(const struct tlbshootdown *);
 
 void vm_kpages_stats(size_t *tot, size_t *ntaken);
 
+extern struct page *alloc_pages(size_t npages);
 
 #endif /* _VM_H_ */
