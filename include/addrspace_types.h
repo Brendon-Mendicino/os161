@@ -36,9 +36,17 @@ typedef enum page_flags_t {
 struct page {
         page_flags_t    flags;
 
-        struct list_head buddy_list;
+        union {
+                struct {
+                        struct list_head buddy_list;
+                };
 
-        refcount_t      _mapcount;    /* User usage count, increased when a page becomes COW */
+                struct {
+                        refcount_t      _mapcount;    /* User usage count, increased when a page becomes COW */
+                };
+        };
+
+        unsigned buddy_order;
         vaddr_t         virtual;        /* Kernel virtual address (NULL if not kmapped) */
 };
 

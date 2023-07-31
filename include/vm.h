@@ -95,6 +95,7 @@ void vm_bootstrap(void);
 int vm_fault(int faulttype, vaddr_t faultaddress);
 
 /* Allocate/free kernel heap pages (called by kmalloc/kfree) */
+
 vaddr_t alloc_kpages(unsigned npages);
 void free_kpages(vaddr_t addr);
 
@@ -104,5 +105,7 @@ void vm_tlbshootdown(const struct tlbshootdown *);
 void vm_kpages_stats(size_t *tot, size_t *ntaken);
 
 extern struct page *alloc_pages(size_t npages);
+
+extern void free_pages(struct page *page);
 
 #endif /* _VM_H_ */
