@@ -268,6 +268,7 @@ static int load_page(struct addrspace *as, Elf_Phdr *ph, vaddr_t address, paddr_
 {
 	int retval;
 	off_t page_offset;
+	size_t filesz;
 
 	/*
 	 * Calculate the offset of the page to be
@@ -276,6 +277,7 @@ static int load_page(struct addrspace *as, Elf_Phdr *ph, vaddr_t address, paddr_
 	KASSERT(address >= ph->p_vaddr);
 	page_offset = (address - ph->p_vaddr) - ((address - ph->p_vaddr) % PAGE_SIZE);
 	
+	filesz = (page_offset < ph->p_filesz) ? ph->p_filesz - page_offset : 0;
 	/*
 	 * only load the demanded page inside memory,
 	 * calculate the size of the page to load inside
@@ -284,7 +286,7 @@ static int load_page(struct addrspace *as, Elf_Phdr *ph, vaddr_t address, paddr_
 			ph->p_offset + page_offset,
 			PADDR_TO_KVADDR(paddr),
 			PAGE_SIZE,
-			MIN(ph->p_filesz - page_offset, PAGE_SIZE));
+			MIN(filesz, PAGE_SIZE));
 	if (retval)
 		return retval;
 
