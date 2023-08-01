@@ -160,6 +160,11 @@ static inline bool pte_present(pte_t pte)
     return (pte_flags(pte) & PAGE_PRESENT) == PAGE_PRESENT;
 }
 
+static inline bool pte_write(pte_t pte)
+{
+    return (pte_flags(pte) & PAGE_RW) == PAGE_RW;
+}
+
 /**
  * @brief clears the PTE table, 
  * 
@@ -196,7 +201,7 @@ static inline void pte_set_page(pte_t *pte_entry, vaddr_t page_addr, pteflags_t 
  * 
  * @param pte pte entry
  */
-static inline paddr_t pte_pfn(pte_t pte)  
+static inline paddr_t pte_paddr(pte_t pte)  
 {
     return kvaddr_to_paddr(pte_value(pte));
 }

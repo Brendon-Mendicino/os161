@@ -289,10 +289,9 @@ void pt_destroy(struct page_table *pt)
  * 
  * @param pt page table
  * @param addr address to the pte
- * @param pte_entry return pte value
- * @return int error if any
+ * @return returns the pte_entry or NULL no memory is available
  */
-int pt_get_or_alloc_pte(struct page_table *pt, vaddr_t addr, pte_t **pte_entry)
+pte_t *pt_get_or_alloc_pte(struct page_table *pt, vaddr_t addr)
 {
     pmd_t *pmd_entry;
     pte_t *pte;
@@ -306,22 +305,20 @@ int pt_get_or_alloc_pte(struct page_table *pt, vaddr_t addr, pte_t **pte_entry)
     if (!pmd_present(*pmd_entry)) {
         pte = pte_create_table();
         if (!pte)
-            return ENOMEM;
+            return NULL;
 
         /* assigns the PTE to a PMD entry */
         pmd_set_pte(pmd_entry, pte);
     }
 
-    *pte_entry = pte_offset(pmd_entry, addr);
-
-    return 0;
+    return pte_offset(pmd_entry, addr);
 }
 
 int pt_alloc_page(struct page_table *pt, vaddr_t addr, struct pt_page_flags flags, paddr_t *paddr)
 {
     pmd_t *pmd_entry;
     pte_t *pte, *pte_entry;
-    vaddr_t page;
+    struct page *page;
 
     KASSERT(pt != NULL);
     KASSERT(pt->pmd != NULL);
@@ -344,21 +341,19 @@ int pt_alloc_page(struct page_table *pt, vaddr_t addr, struct pt_page_flags flag
     pte_entry = pte_offset(pmd_entry, addr);
     /* allocate a page if it is not present */
     if (!pte_present(*pte_entry)) {
-        // TODO: zero filled page
-        page = alloc_kpages(1);
+        page = alloc_user_zeroed_page();
         if (!page)
             return ENOMEM;
 
         pt->total_pages += 1;
 
-        memset((void *)page, 0, PAGE_SIZE);
-        pte_set_page(pte_entry, page, page_flags);
+        pte_set_page(pte_entry, page_to_kvaddr(page), page_flags);
     } else {
         pte_clear_flags(pte_entry);
         pte_set_flags(pte_entry, page_flags);
     }
 
-    *paddr = pte_pfn(*pte_entry);
+    *paddr = pte_paddr(*pte_entry);
 
     return 0;
 }
@@ -388,7 +383,7 @@ int pt_alloc_page_range(struct page_table *pt, vaddr_t start, vaddr_t end, struc
  * @param addr 
  * @return paddr_t 
  */
-paddr_t pt_get_pfn(struct page_table *pt, vaddr_t addr)
+paddr_t pt_get_paddr(struct page_table *pt, vaddr_t addr)
 {
     pmd_t *pmd;
     pte_t *pte;
@@ -401,7 +396,7 @@ paddr_t pt_get_pfn(struct page_table *pt, vaddr_t addr)
     if (!pte_present(*pte))
         return 0;
 
-    return pte_pfn(*pte);
+    return pte_paddr(*pte);
 }
 
 int pt_copy(struct page_table *new, struct page_table *old)

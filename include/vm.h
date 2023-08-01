@@ -45,6 +45,11 @@
 #define VM_FAULT_READONLY    2    /* A write to a readonly page was attempted*/
 
 
+typedef enum fault_value_t {
+    FAULT_OK,
+    FAULT_NOMEM,
+} fault_value_t ;
+
 
 /*
  * In OS161 the RAM size is very limited, so we keep the size
@@ -87,6 +92,84 @@ struct zone {
             order += 1, free_area = &free_area_list[order]) 
 
 
+extern struct page *page_table;
+
+
+static inline struct page *
+kvaddr_to_page(vaddr_t addr)
+{
+	return &page_table[kvaddr_to_pfn(addr)];
+}
+
+static inline struct page *
+pfn_to_page(size_t pfn)
+{
+	return &page_table[pfn];
+}
+
+static inline vaddr_t
+page_to_kvaddr(struct page *page)
+{
+	return PADDR_TO_KVADDR((paddr_t)(page - page_table) * PAGE_SIZE);
+}
+
+static inline paddr_t
+page_to_paddr(struct page *page)
+{
+    return ((paddr_t)(page - page_table) * PAGE_SIZE);
+}
+
+static inline size_t
+page_to_pfn(struct page *page)
+{
+	return kvaddr_to_pfn(page_to_kvaddr(page));
+}
+
+static inline void
+clear_page(struct page *page)
+{
+	KASSERT(page != NULL);
+
+	memset((void *)page_to_kvaddr(page), 0, PAGE_SIZE);
+}
+
+static inline void
+page_init(struct page *page)	
+{
+	page->flags = PGF_INIT;
+	page->virtual = 0;
+}
+
+static inline void
+buddy_page_init(struct page *page)
+{
+	page->flags = PGF_BUDDY;
+	INIT_LIST_HEAD(&page->buddy_list);
+	page->buddy_order = -1;
+	page->virtual = 0;
+}
+
+static inline void
+user_page_init(struct page *page)
+{
+    page->flags = PGF_USER;
+    page->_mapcount = REFCOUNT_INIT(1);
+    page->virtual = 0;
+}
+
+static inline void
+page_set_order(struct page *page, unsigned order)
+{
+	page->buddy_order = order;
+}
+
+static inline unsigned
+page_get_order(struct page *page)
+{
+	return page->buddy_order;
+}
+
+
 
 /* Initialization function */
 void vm_bootstrap(void);
@@ -107,5 +190,7 @@ void vm_kpages_stats(size_t *tot, size_t *ntaken);
 extern struct page *alloc_pages(size_t npages);
 
 extern void free_pages(struct page *page);
+
+extern struct page *alloc_user_zeroed_page(void);
 
 #endif /* _VM_H_ */

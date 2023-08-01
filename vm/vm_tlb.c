@@ -16,6 +16,9 @@ int vm_tlb_set_page(vaddr_t faultaddress, paddr_t paddr)
 	uint32_t ehi, elo;
 	int i;
 
+	/* make sure it's page-aligned */
+	KASSERT((paddr & PAGE_FRAME) == paddr);
+
 	/* Disable interrupts on this CPU while frobbing the TLB. */
 	int spl = splhigh();
 

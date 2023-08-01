@@ -28,61 +28,9 @@ size_t total_pages = 0;
 /*
  * The only zone present in the system.
  */
-struct zone main_zone;
+static struct zone main_zone;
 
 
-
-static inline struct page *
-kvaddr_to_page(vaddr_t addr)
-{
-	return &page_table[kvaddr_to_pfn(addr)];
-}
-
-static inline struct page *
-pfn_to_page(size_t pfn)
-{
-	return &page_table[pfn];
-}
-
-static inline vaddr_t
-page_to_kvaddr(struct page *page)
-{
-	return PADDR_TO_KVADDR((paddr_t)(page - page_table) * PAGE_SIZE);
-}
-
-static inline size_t
-page_to_pfn(struct page *page)
-{
-	return kvaddr_to_pfn(page_to_kvaddr(page));
-}
-
-static void
-page_init(struct page *page)	
-{
-	page->flags = PGF_INIT;
-	page->virtual = 0;
-}
-
-static void
-buddy_page_init(struct page *page)
-{
-	page->flags = PGF_BUDDY;
-	INIT_LIST_HEAD(&page->buddy_list);
-	page->buddy_order = -1;
-	page->virtual = 0;
-}
-
-static inline void
-page_set_order(struct page *page, unsigned order)
-{
-	page->buddy_order = order;
-}
-
-static inline unsigned
-page_get_order(struct page *page)
-{
-	return page->buddy_order;
-}
 
 /*
  * Locate the struct page for both the matching buddy in our
@@ -477,4 +425,24 @@ void free_pages(struct page *page)
 	spinlock_acquire(&mem_lock);
 	free_alloc_pages(&main_zone, page, page_get_order(page));
 	spinlock_release(&mem_lock);
+}
+
+/**
+ * @brief Allocates a page for the user and zero-fills it.
+ * 
+ * @return returns a cleared page or NULL if there is no
+ * memory available.
+ */
+struct page *alloc_user_zeroed_page(void)
+{
+	struct page *page;
+	
+	page = alloc_pages(1);
+	if (!page)
+		return NULL;
+
+	user_page_init(page);
+	clear_page(page);
+
+	return page;
 }
