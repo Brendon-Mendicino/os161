@@ -46,6 +46,13 @@ struct page {
                 };
         };
 
+        /*
+         * Order of the buddy systme allocator,
+         * this is set when the page gets assigned to an order
+         * or is removed from the buddy system.
+         * 
+         * Manipulated inside alloc_pages() / free_pages().
+         */
         unsigned buddy_order;
         vaddr_t         virtual;        /* Kernel virtual address (NULL if not kmapped) */
 };
@@ -60,6 +67,14 @@ typedef enum area_flags_t {
         AS_AREA_MAY_EXEC     = 1 << 5,
 } area_flags_t;
 
+/*
+ * Address Space Area (ASA) types
+ */
+typedef enum area_type_t {
+        ASA_TYPE_FILE,          /* the area is mapped from a file */
+        ASA_TYPE_MMAP,          /* the area is mapped in memory */
+} area_type_t;
+
 /**
  * @brief Represent an area of the address space. The flags
  * allows to handle the area during vm_fault.
@@ -67,6 +82,7 @@ typedef enum area_flags_t {
  */
 struct addrspace_area {
         area_flags_t area_flags;        /* flags of the area */
+        area_type_t  area_type;         /* type of the area */
         struct list_head next_area;  
         /*
          * Borders of the area, the end is not included

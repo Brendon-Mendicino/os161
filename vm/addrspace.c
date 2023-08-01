@@ -40,7 +40,7 @@
 #include <machine/tlb.h>
 
 static struct addrspace_area *
-as_create_area(vaddr_t start, vaddr_t end, bool read, bool write, bool exec)
+as_create_area(vaddr_t start, vaddr_t end, area_flags_t flags, area_type_t type)
 {
 	struct  addrspace_area *area;
 
@@ -52,11 +52,8 @@ as_create_area(vaddr_t start, vaddr_t end, bool read, bool write, bool exec)
 
 	area->area_start = start;
 	area->area_end = end;
-	/* we use AS_AREA_MAY_WRITE for COW pages */
-	area->area_flags =
-		(exec * AS_AREA_EXEC) |
-		(read * AS_AREA_WRITE) |
-		(write * AS_AREA_WRITE);
+	area->area_flags = flags;
+	area->area_type = type;
 
 	INIT_LIST_HEAD(&area->next_area);
 
@@ -259,11 +256,15 @@ as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize,
 	int retval;
 	struct addrspace_area *area;
 
+	area_flags_t flags =
+			(readable ? AS_AREA_READ : 0) |
+			(writeable ? AS_AREA_WRITE : 0) |
+			(executable ? AS_AREA_EXEC : 0);
+
 	area = as_create_area(vaddr,
 			vaddr + memsize,
-			readable ? true : false,
-			writeable ? true : false,
-			executable ? true : false);
+			flags,
+			ASA_TYPE_FILE);
 	if (!area)
 		return ENOMEM;
 
@@ -345,6 +346,18 @@ as_define_stack(struct addrspace *as, vaddr_t *stackptr)
 
 	return 0;
 #endif // OPT_ARGS
+}
+
+struct addrspace_area *as_find_area(struct addrspace *as, vaddr_t addr)
+{
+	struct addrspace_area *area;
+
+	as_for_each_area(as, area) {
+		if (addr >= area->area_start && addr < area->area_end)
+			return area;
+	}
+
+	return NULL;
 }
 
 #if OPT_ARGS

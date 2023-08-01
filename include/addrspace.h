@@ -63,6 +63,12 @@ struct vnode;
 #define as_for_each_area_safe(as, area, temp)          \
 	list_for_each_entry_safe(area, temp, &as->addrspace_area_list, next_area)
 
+
+static inline bool asa_file_mapped(struct addrspace_area *area)
+{
+    return area->area_type == ASA_TYPE_FILE;
+}
+
 /*
  * Functions in addrspace.c:
  *
@@ -123,6 +129,8 @@ int               as_define_stack(struct addrspace *as, vaddr_t *initstackptr);
 #if OPT_ARGS
 extern int as_define_args(struct addrspace *as, int argc, char **argv, userptr_t *uargv);
 #endif // OPT_ARGS
+
+extern struct addrspace_area *as_find_area(struct addrspace *as, vaddr_t addr);
 
 /*
  * Functions in loadelf.c
