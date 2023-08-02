@@ -389,9 +389,6 @@ cmd_quit(int nargs, char **args)
 static int
 cmd_memstat(int nargs, char **args)
 {
-	size_t tot;
-	size_t ntaken;
-
 	(void)nargs;
 	(void)args;
 
@@ -399,9 +396,7 @@ cmd_memstat(int nargs, char **args)
 	kprintf("OS161 Memory usage statistics:\n");
 	kprintf("Memory statistics:\n");
 
-	vm_kpages_stats(&tot, &ntaken);
-	kprintf("Total pages: %3d\n", tot);
-	kprintf("Taken pages: %3d\n", ntaken);
+	vm_kpages_stats();
 
 	kprintf("\n");
 

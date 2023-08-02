@@ -401,6 +401,5 @@ int file_table_copy(struct file_table *ftable, struct file_table *copy)
 /* cleanup bad initialization */
 out:
     lock_release(ftable->table_lock);
-    file_table_clear(copy);
     return retval;
 }

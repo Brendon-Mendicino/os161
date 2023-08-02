@@ -17,7 +17,7 @@ static inline int atomic_read(const atomic_t *atomic)
     return READ_ONCE(atomic->counter);
 }
 
-static inline void _atomic_set(atomic_t *atomic, int i)
+static inline void atomic_set(atomic_t *atomic, int i)
 {
     WRITE_ONCE(atomic->counter, i);
 }

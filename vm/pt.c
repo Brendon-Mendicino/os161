@@ -3,7 +3,7 @@
 #include <lib.h>
 #include <kern/errno.h>
 #include <addrspace.h>
-
+#include <page.h>
 
 
 static inline vaddr_t pmd_addr_end(vaddr_t addr, vaddr_t end)
@@ -84,6 +84,7 @@ static pte_t *pte_create_table(void)
  */
 static size_t pte_free_table(pte_t *pte)
 {
+    struct page *page;
     size_t freed_pages = 0;
     size_t i;
 
@@ -93,7 +94,9 @@ static size_t pte_free_table(pte_t *pte)
         if (!pte_present(pte[i]))
             continue;
 
-        free_kpages(pte_value(pte[i]));
+        page = pte_page(pte[i]);
+        user_page_put(page);
+
         pte_clear(&pte[i]);
         freed_pages += 1;
     }
@@ -105,7 +108,7 @@ static size_t pte_free_table(pte_t *pte)
 
 static int pte_alloc_page_range(pte_t *pte, vaddr_t start, vaddr_t end, struct pt_page_flags flags, size_t *alloc_pages)
 {
-    vaddr_t page;
+    struct page *page;
     size_t pmd_curr_index;
     pte_t *pte_entry;
 
@@ -130,15 +133,13 @@ static int pte_alloc_page_range(pte_t *pte, vaddr_t start, vaddr_t end, struct p
             continue;
         }
 
-        // TODO: zero filled page
-        page = alloc_kpages(1);
+        page = alloc_user_zeroed_page();
         if (!page)
             return ENOMEM;
 
         *alloc_pages += 1;
 
-        memset((void *)page, 0, PAGE_SIZE);
-        pte_set_page(pte_entry, page, page_flags);
+        pte_set_page(pte_entry, page_to_kvaddr(page), page_flags);
     }
 
     return 0;
@@ -402,15 +403,13 @@ paddr_t pt_get_paddr(struct page_table *pt, vaddr_t addr)
 int pt_copy(struct page_table *new, struct page_table *old)
 {
     pte_t *new_pte, *old_pte;
-    vaddr_t new_page;
+    struct page *page;
     size_t i, j;
 
     KASSERT(old->pmd != NULL);
     KASSERT(new->pmd != NULL);
     KASSERT(new->total_pages == 0);
 
-    // TODO: implement COW of the pages
-    // TODO: refactor, this is just temp, fix flags
     for (i = 0; i < PTRS_PER_PMD; i++) {
         if (!pmd_present(old->pmd[i]))
             continue;
@@ -426,17 +425,15 @@ int pt_copy(struct page_table *new, struct page_table *old)
             if (!pte_present(old_pte[j]))
                 continue;
 
-            new_page = alloc_kpages(1);
-            if (!new_page)
-                return ENOMEM;
+            page = pte_page(old_pte[j]);
+            user_page_get(page);
+            pte_set_cow(&old_pte[j]);
 
-            new->total_pages += 1;
-
-            /* copy the old page, this is just temporary */
-            memmove((void *)new_page, (void *)pte_value(old_pte[j]), PAGE_SIZE);
 
             /* copy the flags */
-            pte_set_page(&new_pte[j], new_page, pte_flags(old_pte[j]));
+            pte_set_page(&new_pte[j], page_to_kvaddr(page), pte_flags(old_pte[j]));
+
+            new->total_pages += 1;
         }
     }
 

@@ -73,6 +73,8 @@ typedef enum area_flags_t {
 typedef enum area_type_t {
         ASA_TYPE_FILE,          /* the area is mapped from a file */
         ASA_TYPE_MMAP,          /* the area is mapped in memory */
+        ASA_TYPE_ARGS,
+        ASA_TYPE_STACK,
 } area_type_t;
 
 /**
@@ -113,6 +115,8 @@ struct addrspace {
         struct page_table pt;
 
         struct list_head addrspace_area_list;
+
+        struct lock  *as_file_lock;
 
         struct vnode *source_file;
 

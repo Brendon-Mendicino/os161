@@ -532,6 +532,12 @@ proc_copy(void)
 	if (err)
 		goto fork_out;
 
+#if OPT_SYSFS
+	err = file_table_copy(curr->ftable, new_proc->ftable);
+	if (err)
+		goto fork_out;
+#endif // OPT_SYSFS
+
 	new_proc->p_addrspace = as;
 
 #if OPT_SYSCALLS
@@ -543,10 +549,6 @@ proc_copy(void)
 
 	add_new_child_proc(new_proc, curr);
 #endif // OPT_SYSCALLS
-
-#if OPT_SYSFS
-	file_table_copy(curr->ftable, new_proc->ftable);
-#endif // OPT_SYSFS
 
 	/*
 	 * Lock the current process to copy its current directory.

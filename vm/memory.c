@@ -4,15 +4,20 @@
 #include <current.h>
 #include <proc.h>
 #include <vm_tlb.h>
+#include <page.h>
 #include <kern/errno.h>
+
+static inline bool is_cow_mapping(area_flags_t flags)
+{
+	return (flags & AS_AREA_MAY_WRITE) == AS_AREA_MAY_WRITE;
+}
 
 static int page_not_present_fault(
 	struct addrspace *as,
 	struct addrspace_area *area,
 	pte_t *pte,
 	vaddr_t fault_address,
-	int fault_type,
-	paddr_t *paddr)
+	int fault_type)
 {
 	struct page *page;
 	int retval;
@@ -26,9 +31,12 @@ static int page_not_present_fault(
 		retval = load_demand_page(as, fault_address, page_to_paddr(page));
 		if (retval)
 			goto cleanup_page;
+	} else {
+		// TODO: temp
+		panic("missing page not from file!\n");
 	}
 
-	bool page_write = (area->area_flags & AS_AREA_WRITE) == AS_AREA_WRITE;
+	bool page_write = (area->area_flags & (AS_AREA_WRITE | AS_AREA_MAY_WRITE)) == (AS_AREA_WRITE | AS_AREA_MAY_WRITE);
 	bool page_dirty = page_write && (fault_type & VM_FAULT_READ);
 
 	pteflags_t flags = PAGE_PRESENT |
@@ -39,7 +47,7 @@ static int page_not_present_fault(
 	pte_set_page(pte, page_to_kvaddr(page), flags);
 	pt_inc_page_count(&as->pt, 1);
 
-	*paddr = page_to_paddr(page);
+	vm_tlb_set_page(fault_address, page_to_paddr(page), page_write);
 	
 	return 0;
 
@@ -48,12 +56,40 @@ cleanup_page:
 	return retval;
 }
 
-static int readonly_fault(void)
+static int readonly_fault(
+	struct addrspace *as,
+	struct addrspace_area *area,
+	pte_t *pte,
+	vaddr_t fault_address,
+	int fault_type)
 {
+	struct page *page;
+	int retval;
+
+	// TODO: temp
+	(void)as;
+	(void)fault_type;
+
+	if (asa_readonly(area))
+		return EFAULT;
+
+	page = pte_page(*pte);
+
+	if (is_cow_mapping(area->area_flags)) {
+		page = user_page_copy(page);
+	}
+
+	pte_clear(pte);
+	pte_set_page(pte, page_to_kvaddr(page), PAGE_PRESENT | PAGE_RW | PAGE_ACCESSED | PAGE_DIRTY);
+
+	retval = vm_tlb_set_readable(fault_address & PAGE_FRAME, page_to_paddr(page));
+	if (retval)
+		return retval;
+
 	return 0;
 }
 
-static int vm_handle_fault(struct addrspace *as, vaddr_t fault_address, int fault_type, paddr_t *paddr)
+static int vm_handle_fault(struct addrspace *as, vaddr_t fault_address, int fault_type)
 {
 	struct addrspace_area *area;
 	pte_t *pte, pte_entry;
@@ -67,36 +103,25 @@ static int vm_handle_fault(struct addrspace *as, vaddr_t fault_address, int faul
 	pte_entry = *pte;
 
 	if (!pte_present(pte_entry)) {
-		return page_not_present_fault(as, area, pte, fault_address, fault_type, paddr);
+		return page_not_present_fault(as, area, pte, fault_address, fault_type);
 	}
-
-	*paddr = pte_paddr(pte_entry);
 
 	if (fault_type & VM_FAULT_READONLY) {
 		if (!pte_write(pte_entry)) {
-			readonly_fault();
+			return readonly_fault(as, area, pte, fault_address, fault_type);
 		}
+		return EFAULT;
 	}
+
+	vm_tlb_set_page(fault_address, pte_paddr(pte_entry), pte_write(pte_entry));
 
     return 0;
 }
 
 int vm_fault(int faulttype, vaddr_t faultaddress)
 {
-	paddr_t paddr;
 	struct addrspace *as;
 	int retval;
-
-	switch (faulttype) {
-	    case VM_FAULT_READONLY:
-		/* We always create pages read-write, so we can't get this */
-		// panic("dumbvm: got VM_FAULT_READONLY\n");
-	    case VM_FAULT_READ:
-	    case VM_FAULT_WRITE:
-		break;
-	    default:
-		return EINVAL;
-	}
 
 	if (curproc == NULL) {
 		/*
@@ -116,13 +141,13 @@ int vm_fault(int faulttype, vaddr_t faultaddress)
 		return EFAULT;
 	}
 
-    retval = vm_handle_fault(as, faultaddress, faulttype, &paddr);
+	if (faultaddress == 0)
+		return EFAULT;
+
+    retval = vm_handle_fault(as, faultaddress, faulttype);
     if (retval)
         return retval;
 
-    retval = vm_tlb_set_page(faultaddress, paddr);
-    if (retval) 
-        return retval;
         
     return 0;
 }

@@ -19,6 +19,11 @@ static inline unsigned int refcount_read(refcount_t *r)
     return atomic_read(&r->count);
 }
 
+static inline void refcount_set(refcount_t *r, unsigned count)
+{
+    atomic_set(&r->count, count);
+}
+
 static inline unsigned int refcount_inc(refcount_t *r)
 {
     int initial_count = atomic_fetch_add(&r->count, 1);

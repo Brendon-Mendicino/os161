@@ -72,6 +72,7 @@
         "vm_tlb.h": "c",
         "errmsg.h": "c",
         "page.h": "c",
-        "getorder.h": "c"
+        "getorder.h": "c",
+        "current.h": "c"
     }
 }

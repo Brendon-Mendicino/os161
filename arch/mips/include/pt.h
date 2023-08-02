@@ -135,6 +135,11 @@ static inline size_t pte_index(vaddr_t addr)
     return (size_t)((addr >> PTE_SHIFT) & PTE_INDEX_MASK);
 }
 
+static inline void pte_set_cow(pte_t *pte)
+{
+    pte->pteflags &= ~PAGE_RW;
+}
+
 static inline void pte_set_flags(pte_t *pte, pteflags_t flags)
 {
     pte->pteflags |= flags;

@@ -294,8 +294,31 @@ static void buddy_print_info(void)
 	for (order = 0; order <= MAX_ORDER; order += 1) {
 		unsigned n_free = main_zone.free_area[order].n_free;
 
-		kprintf("order: %2d: free pages: %8d\n", order, n_free);
+		kprintf("order: %2d: free pages:\t%8d\n", order, n_free);
 	}
+}
+
+static void page_print_info(void)
+{
+	size_t i;
+	struct page *page;
+	size_t alloc_pages = 0;
+	size_t free_pages = 0;
+
+	for (i = 0, page = &page_table[i]; i < total_pages; i += 1, page = &page_table[i]) {
+		if (page->flags == PGF_BUDDY) {
+			free_pages += 1 << page->buddy_order;
+			i += (1 << page->buddy_order) - 1;
+		} else if (page->flags == PGF_INIT) {
+			free_pages += 1;
+		} else {
+			alloc_pages += 1 << page->buddy_order;
+			i += (1 << page->buddy_order) - 1;
+		}
+	}
+
+	kprintf("allocated pages:\t%8d\n", alloc_pages);
+	kprintf("free pages:\t\t%8d\n", free_pages);
 }
 
 /*
@@ -372,13 +395,14 @@ vm_tlbshootdown(const struct tlbshootdown *ts)
 }
 
 void
-vm_kpages_stats(size_t *tot, size_t *ntaken)
+vm_kpages_stats(void)
 {
-	*tot = 0;
-	*ntaken = 0;
-	// TODO: change at the end
 	spinlock_acquire(&mem_lock);
+
 	buddy_print_info();
+	kprintf("\n");
+	page_print_info();
+
 	spinlock_release(&mem_lock);
 }
 

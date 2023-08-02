@@ -185,7 +185,7 @@ void free_kpages(vaddr_t addr);
 /* TLB shootdown handling called from interprocessor_interrupt */
 void vm_tlbshootdown(const struct tlbshootdown *);
 
-void vm_kpages_stats(size_t *tot, size_t *ntaken);
+void vm_kpages_stats(void);
 
 extern struct page *alloc_pages(size_t npages);
 

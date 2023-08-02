@@ -38,6 +38,7 @@
 #include <pt.h>
 #include <copyinout.h>
 #include <machine/tlb.h>
+#include <vm_tlb.h>
 
 static struct addrspace_area *
 as_create_area(vaddr_t start, vaddr_t end, area_flags_t flags, area_type_t type)
@@ -95,6 +96,9 @@ as_copy_area(struct addrspace *new, struct addrspace *old)
 	KASSERT(list_empty(&new->addrspace_area_list));
 
 	as_for_each_area(old, old_area) {
+		/* set AS_AREA_MAY_WRITE for COW mapping */
+		old_area->area_flags |= asa_read(old_area) * AS_AREA_MAY_WRITE;
+
 		new_area = kmalloc(sizeof(struct addrspace_area));
 		if (!new_area)
 			return ENOMEM;
@@ -127,13 +131,16 @@ as_create(void)
 	struct addrspace *as;
 
 	as = kmalloc(sizeof(struct addrspace));
-	if (as==NULL) {
+	if (as==NULL)
 		return NULL;
-	}
+
+	as->as_file_lock = lock_create("as_file_lock");
+	if (!as->as_file_lock)
+		goto out;
 
 	retval = pt_init(&as->pt);
 	if (retval)
-		return NULL;
+		goto bad_lock_cleanup;
 
 	INIT_LIST_HEAD(&as->addrspace_area_list);
 
@@ -148,6 +155,13 @@ as_create(void)
 	as->end_arg = 0;
 
 	return as;
+
+bad_lock_cleanup:
+	lock_destroy(as->as_file_lock);
+
+out:
+	kfree(as);
+	return NULL;
 }
 
 int
@@ -177,11 +191,13 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 	if (retval)
 		goto bad_pt_copy_cleanup;
 
-
+	vm_tlb_flush();
+	
 	*ret = new;
 	return 0;
 
 bad_pt_copy_cleanup:
+	// TODO: handle cow copy
 	kprintf("Remember to handle COW copy of the old page!\n");
 
 bad_as_copy_area_cleanup:
@@ -203,6 +219,8 @@ as_destroy(struct addrspace *as)
 
 	pt_destroy(&as->pt);
 
+	lock_destroy(as->as_file_lock);
+
 	vfs_close(as->source_file);
 
 	kfree(as);
@@ -211,7 +229,6 @@ as_destroy(struct addrspace *as)
 void
 as_activate(void)
 {
-	int i, spl;
 	struct addrspace *as;
 
 	as = proc_getas();
@@ -219,14 +236,7 @@ as_activate(void)
 		return;
 	}
 
-	/* Disable interrupts on this CPU while frobbing the TLB. */
-	spl = splhigh();
-
-	for (i=0; i<NUM_TLB; i++) {
-		tlb_write(TLBHI_INVALID(i), TLBLO_INVALID(), i);
-	}
-
-	splx(spl);
+	vm_tlb_flush();
 }
 
 void
@@ -312,25 +322,33 @@ int
 as_define_stack(struct addrspace *as, vaddr_t *stackptr)
 {
 #if OPT_ARGS
+	struct addrspace_area *area;
 	int retval;
 
 	KASSERT(as != NULL);
 
 	KASSERT(as->start_arg != 0);
-	KASSERT((as->start_arg & (0x8 - 1)) == 0); 
 	KASSERT(as->end_arg != 0);
 
 	KASSERT(as->start_stack == 0);
 	KASSERT(as->end_stack == 0);
 
-	as->start_stack = USERSTACK - AS_STACKPAGES * PAGE_SIZE;
-	/* start_arg must be 8byte aligned */
-	as->end_stack = as->start_arg;
+
+	as->end_stack = as->start_arg & PAGE_FRAME;
+	as->start_stack = as->end_stack - AS_STACKPAGES * PAGE_SIZE;
 
 	retval = pt_alloc_page_range(&as->pt, as->start_stack, as->end_stack, (struct pt_page_flags){
 		.page_rw = true,
 		.page_pwt = false,
 	});
+	if (retval)
+		return retval;
+
+	area = as_create_area(as->start_stack, as->end_stack, AS_AREA_READ | AS_AREA_WRITE, ASA_TYPE_STACK);
+	if (!area)
+		return ENOMEM;
+
+	retval = as_add_area(as, area);
 	if (retval)
 		return retval;
 
@@ -375,6 +393,7 @@ struct addrspace_area *as_find_area(struct addrspace *as, vaddr_t addr)
 int as_define_args(struct addrspace *as, int argc, char **argv, userptr_t *uargv)
 {
 	int i;
+	struct addrspace_area *area;
 	size_t arg_map_size = 0;
 	size_t offset = 0;
 	char **user_argv;
@@ -443,6 +462,14 @@ int as_define_args(struct addrspace *as, int argc, char **argv, userptr_t *uargv
 
 		offset += strlen(argv[i]) + 1;
 	}
+
+	area = as_create_area(as->start_arg, as->end_arg, AS_AREA_READ, ASA_TYPE_ARGS);
+	if (!area)
+		return ENOMEM;
+
+	retval = as_add_area(as, area);
+	if (retval)
+		return retval;
 
 	/* set the user argv pointer */
 	*uargv = (userptr_t)as->start_arg;

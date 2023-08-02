@@ -63,10 +63,19 @@ struct vnode;
 #define as_for_each_area_safe(as, area, temp)          \
 	list_for_each_entry_safe(area, temp, &as->addrspace_area_list, next_area)
 
+static inline bool asa_read(struct addrspace_area *area)
+{
+    return (area->area_flags & AS_AREA_WRITE) == AS_AREA_WRITE;
+}
 
 static inline bool asa_file_mapped(struct addrspace_area *area)
 {
     return area->area_type == ASA_TYPE_FILE;
+}
+
+static inline bool asa_readonly(struct addrspace_area *area)
+{
+    return (area->area_flags & (AS_AREA_WRITE | AS_AREA_MAY_WRITE)) == 0;
 }
 
 /*
