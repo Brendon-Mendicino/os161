@@ -95,6 +95,8 @@ static int vm_handle_fault(struct addrspace *as, vaddr_t fault_address, int faul
 	pte_t *pte, pte_entry;
 
 	area = as_find_area(as, fault_address);
+	if (!area)
+		return EFAULT;
 
 	pte = pt_get_or_alloc_pte(&as->pt, fault_address);
 	if (!pte)

@@ -7,7 +7,13 @@
 #include <list.h>
 #include <thread.h>
 #include <copyinout.h>
+#include <kern/wait.h>
+#include <kern/errno.h>
 
+static bool check_options(int options) 
+{
+    return (options == 0) || ((options & ~(WNOHANG | WUNTRACED)) == 0);
+}
 
 void sys__exit(int status)
 {
@@ -41,6 +47,9 @@ int sys_waitpid(pid_t pid, userptr_t wstatus, int options, pid_t *exit_pid)
 
     KASSERT(exit_pid != NULL);
 
+    if (!check_options(options))
+        return EINVAL;
+
     if (options != 0)
         panic("sys_waitpid: options|wstatus not implemented yet\n");
 
@@ -48,7 +57,8 @@ int sys_waitpid(pid_t pid, userptr_t wstatus, int options, pid_t *exit_pid)
     if (retval)
         return retval;
 
-    retval = copyout(&sys_wstatus, wstatus, sizeof(int));
+    if (wstatus != NULL)
+        retval = copyout(&sys_wstatus, wstatus, sizeof(int));
 
     // TODO: cambiare
     *exit_pid = pid;
