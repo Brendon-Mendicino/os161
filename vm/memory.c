@@ -36,7 +36,7 @@ static int page_not_present_fault(
 		panic("missing page not from file!\n");
 	}
 
-	bool page_write = (area->area_flags & (AS_AREA_WRITE | AS_AREA_MAY_WRITE)) == (AS_AREA_WRITE | AS_AREA_MAY_WRITE);
+	bool page_write = asa_write(area);
 	bool page_dirty = page_write && (fault_type & VM_FAULT_READ);
 
 	pteflags_t flags = PAGE_PRESENT |

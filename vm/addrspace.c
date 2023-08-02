@@ -97,7 +97,7 @@ as_copy_area(struct addrspace *new, struct addrspace *old)
 
 	as_for_each_area(old, old_area) {
 		/* set AS_AREA_MAY_WRITE for COW mapping */
-		old_area->area_flags |= asa_read(old_area) * AS_AREA_MAY_WRITE;
+		old_area->area_flags |= asa_write(old_area) * AS_AREA_MAY_WRITE;
 
 		new_area = kmalloc(sizeof(struct addrspace_area));
 		if (!new_area)
