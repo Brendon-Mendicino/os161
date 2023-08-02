@@ -267,15 +267,29 @@ static int load_elf_header(struct vnode *v, Elf_Ehdr *eh)
 static int load_page(struct addrspace *as, Elf_Phdr *ph, vaddr_t address, paddr_t paddr)
 {
 	int retval;
-	off_t page_offset;
-	size_t filesz;
+	off_t page_offset, file_offset;
+	size_t memsize, filesz;
+	vaddr_t vaddr;
 
 	/*
 	 * Calculate the offset of the page to be
 	 * loaded inside the segment
 	 */
 	KASSERT(address >= ph->p_vaddr);
-	page_offset = (address - ph->p_vaddr) - ((address - ph->p_vaddr) % PAGE_SIZE);
+
+	/* align the offset with the begenning of a page */
+	if ((address & PAGE_FRAME) > ph->p_vaddr) {
+		page_offset = (address & PAGE_FRAME) - ph->p_vaddr;
+	} else {
+		page_offset = 0;
+	}
+
+	file_offset = ph->p_offset + page_offset;
+	KASSERT((page_offset == 0) || PAGE_ALIGNED(ph->p_vaddr + page_offset));
+
+	vaddr = PADDR_TO_KVADDR(paddr) + ((ph->p_vaddr + page_offset) % PAGE_SIZE);
+
+	memsize = PAGE_SIZE - ((ph->p_vaddr + page_offset) % PAGE_SIZE);
 	
 	filesz = (page_offset < ph->p_filesz) ? ph->p_filesz - page_offset : 0;
 	/*
@@ -283,10 +297,10 @@ static int load_page(struct addrspace *as, Elf_Phdr *ph, vaddr_t address, paddr_
 	 * calculate the size of the page to load inside
 	 */
 	retval = load_ksegment(as->source_file,
-			ph->p_offset + page_offset,
-			PADDR_TO_KVADDR(paddr),
-			PAGE_SIZE,
-			MIN(filesz, PAGE_SIZE));
+			file_offset,
+			vaddr,
+			memsize,
+			MIN(filesz, memsize));
 	if (retval)
 		return retval;
 

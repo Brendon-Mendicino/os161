@@ -424,6 +424,14 @@ int as_define_args(struct addrspace *as, int argc, char **argv, userptr_t *uargv
 	/* end is not inclusive */
 	as->end_arg = as->start_arg + arg_map_size;
 
+	area = as_create_area(as->start_arg, as->end_arg, AS_AREA_READ, ASA_TYPE_ARGS);
+	if (!area)
+		return ENOMEM;
+
+	retval = as_add_area(as, area);
+	if (retval)
+		return retval;
+
 	/* allocate the page for the required space */
 	retval = pt_alloc_page_range(&as->pt, as->start_arg, as->end_arg, (struct pt_page_flags){
 		.page_rw = true,
@@ -462,14 +470,6 @@ int as_define_args(struct addrspace *as, int argc, char **argv, userptr_t *uargv
 
 		offset += strlen(argv[i]) + 1;
 	}
-
-	area = as_create_area(as->start_arg, as->end_arg, AS_AREA_READ, ASA_TYPE_ARGS);
-	if (!area)
-		return ENOMEM;
-
-	retval = as_add_area(as, area);
-	if (retval)
-		return retval;
 
 	/* set the user argv pointer */
 	*uargv = (userptr_t)as->start_arg;
