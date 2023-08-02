@@ -725,7 +725,9 @@ static struct {
 	{ "sy4",	cvtest2 },
 
 	/* atmomic unit tests */
+#if OPT_ATOMIC
 	{ "atmu1",  atmu1 },
+#endif // OPT_ATOMIC
 
 	/* semaphore unit tests */
 	{ "semu1",	semu1 },

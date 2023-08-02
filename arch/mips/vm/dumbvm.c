@@ -280,13 +280,19 @@ vm_fault(int faulttype, vaddr_t faultaddress)
 }
 
 void
-vm_kpages_stats(size_t *tot, size_t *ntaken)
+vm_kpages_stats(void)
 {
+	size_t tot;
+	size_t ntaken;
+
 #if OPT_ALLOCATOR
 	spinlock_acquire(&mem_lock);
-	*tot = atable_capacity(atable);
-	*ntaken = atable_size(atable);
+	tot = atable_capacity(atable);
+	ntaken = atable_size(atable);
 	spinlock_release(&mem_lock);
+
+	kprintf("total pages:\t%8d\n", tot);
+	kprintf("taken pages:\t%8d\n", ntaken);
 #else
 	(void)tot;
 	(void)ntaken;

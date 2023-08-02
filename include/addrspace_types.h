@@ -12,7 +12,6 @@
 
 
 
-#if OPT_PAGING
 /**
  * @brief This are the struct page flags,
  * they identify in which state a page is in the system.
@@ -92,7 +91,6 @@ struct addrspace_area {
          */
         vaddr_t area_start, area_end;
 };
-#endif // OPT_PAGING
 
 
 /*
