@@ -44,9 +44,10 @@
 #include "opt-syscalls.h"
 #include "opt-sysfs.h"
 
-typedef enum {
+typedef enum proc_state_t {
 	PROC_NEW,
 	PROC_RUNNING,
+	PROC_ZOMBIE,
 } proc_state_t;
 
 struct addrspace;
@@ -93,8 +94,8 @@ struct proc {
 	 */
 	struct semaphore *wait_sem;
 
-	unsigned int state;
-	unsigned int exit_state;
+	proc_state_t state;
+	proc_state_t exit_state;
 	int exit_code;
 
 	/* 

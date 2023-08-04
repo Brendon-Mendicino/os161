@@ -55,12 +55,6 @@
 
 
 
-#define PROC_RUNNING   0x00000000
-#define PROC_NEW       0x00000001
-#define PROC_ZOMBIE    0x00000002
-
-
-
 /*
  * The process for the kernel; this holds all the kernel-only threads.
  * 
@@ -131,6 +125,11 @@ void proc_make_zombie(int exit_code, struct proc *proc)
 	cv_broadcast(proc->wait_cv, proc->wait_lock);
 	lock_release(proc->wait_lock);
 
+	/**
+	 * Without this signal the father can kill the current proc
+	 * when this hasn't come out of this funcion yet, thus causing
+	 * references to dangling pointers.
+	 */
 	V(proc->wait_sem);
 }
 
@@ -169,12 +168,15 @@ int proc_check_zombie(pid_t pid, int *wstatus, int options, struct proc *proc)
 	}
 	lock_release(child->wait_lock);
 
+	/**
+	 * Without this signal the father can kill the child proc
+	 * when it hasn't exited yet, thus causing
+	 * references to dangling pointers.
+	 */
 	P(child->wait_sem);
 
-	if (wstatus)
-	{
-		*wstatus = _MKWVAL(child->exit_code);
-		*wstatus = _MKWAIT_EXIT(*wstatus);
+	if (wstatus) {
+		*wstatus = _MKWAIT_EXIT(child->exit_code);
 	}
 
 	// TODO: move this

@@ -31,6 +31,7 @@
 #include <kern/errno.h>
 #include <kern/reboot.h>
 #include <kern/unistd.h>
+#include <kern/wait.h>
 #include <limits.h>
 #include <lib.h>
 #include <uio.h>
@@ -103,7 +104,7 @@ cmd_progthread(void *ptr, unsigned long nargs)
 			strerror(result));
 
 #if OPT_SYSCALLS
-		sys__exit(-1);
+		sys__exit(1);
 #endif
 		return;
 	}
@@ -153,7 +154,7 @@ common_prog(int nargs, char **args)
 		retval = proc_check_zombie(proc->pid, &exit_code, 0, curproc);
 		if (retval)
 			panic("Kernel waiting for proc returned err: %d\n", retval);
-		kprintf("Exit status: %d\n", exit_code);
+		kprintf("Exit status: %d\n", WEXITSTATUS(exit_code));
 	}
 #endif // OPT_SYSCALLS
 
