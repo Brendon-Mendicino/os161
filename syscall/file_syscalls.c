@@ -31,7 +31,7 @@ int sys_write(int fd, const_userptr_t buf, size_t nbyte, size_t *size_wrote)
 
     file = proc_get_file(curr, fd);
     if (!file)
-        return ENOENT;
+        return EBADF;
 
     kbuf = kmalloc(nbyte);
     if (!kbuf)
@@ -77,7 +77,7 @@ int sys_read(int fd, userptr_t buf, size_t nbyte, size_t *size_read)
 
     file = proc_get_file(curr, fd);
     if (!file)
-        return ENOENT;
+        return EBADF;
 
     kbuf = kmalloc(nbyte);
     if (!kbuf)
