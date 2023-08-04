@@ -176,7 +176,7 @@ int proc_check_zombie(pid_t pid, int *wstatus, int options, struct proc *proc)
 	P(child->wait_sem);
 
 	if (wstatus) {
-		*wstatus = _MKWAIT_EXIT(child->exit_code);
+		*wstatus = child->exit_code;
 	}
 
 	// TODO: move this

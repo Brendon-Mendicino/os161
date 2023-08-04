@@ -30,6 +30,7 @@
 #include <types.h>
 #include <signal.h>
 #include <lib.h>
+#include <kern/wait.h>
 #include <mips/specialreg.h>
 #include <mips/trapframe.h>
 #include <cpu.h>
@@ -116,7 +117,7 @@ kill_curthread(vaddr_t epc, unsigned code, vaddr_t vaddr)
 		code, sig, trapcodenames[code], epc, vaddr);
 #if OPT_PAGING
 	// TODO: use core dumpred for exit
-	sys__exit(1);
+	sys__exit(_MKWAIT_SIG(sig));
 #else // OPT_PAGING
 	panic("I don't know how to handle this\n");
 #endif // OPT_PAGING
