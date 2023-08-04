@@ -37,6 +37,8 @@ extern int file_read(struct file *file, void *kbuf, size_t nbyte, size_t *byte_r
 
 extern int file_write(struct file *file, void *kbuf, size_t nbyte, size_t *byte_wrote);
 
+extern int file_lseek(struct file *file, off_t offset, int whence, off_t *offset_location);
+
 extern int file_copy(struct file *file, struct file **copy);
 
 extern void file_add_offset(struct file *file, off_t offset);

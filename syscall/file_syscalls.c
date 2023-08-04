@@ -9,7 +9,13 @@
 #include <copyinout.h>
 #include <kern/iovec.h>
 #include <kern/errno.h>
+#include <kern/seek.h>
 #include <kern/unistd.h>
+
+static inline bool check_whence(int whence)
+{
+    return (whence == SEEK_CUR) || (whence == SEEK_SET) || (whence == SEEK_END);
+}
 
 int sys_write(int fd, const_userptr_t buf, size_t nbyte, size_t *size_wrote)
 {
@@ -100,6 +106,27 @@ out:
 
     return 0;
 #endif // OPT_SYSFS
+}
+
+int sys_lseek(int fd, off_t offset, int whence, off_t *offset_location)
+{
+    struct file *file;
+    int retval;
+
+    KASSERT(curcpu != NULL);
+
+    if (!check_whence(whence))
+        return EINVAL;
+
+    file = proc_get_file(curproc, fd);
+    if (!file)
+        return EBADF;
+
+    retval = file_lseek(file, offset, whence, offset_location);
+    if (retval)
+        return retval;
+
+    return 0;
 }
 
 #if OPT_SYSFS

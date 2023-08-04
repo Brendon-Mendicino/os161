@@ -5,6 +5,8 @@
 #include <lib.h>
 #include <limits.h>
 #include <uio.h>
+#include <stat.h>
+#include <kern/seek.h>
 #include <kern/fcntl.h>
 #include <kern/errno.h>
 
@@ -102,6 +104,40 @@ int file_write(struct file *file, void *kbuf, size_t nbyte, size_t *byte_wrote)
     /* check if all the bytes were written */
     *byte_wrote = nbyte - uio.uio_resid;
     file->offset += (off_t)*byte_wrote;
+    lock_release(file->file_lock);
+
+    return 0;
+}
+
+int file_lseek(struct file *file, off_t offset, int whence, off_t *offset_location)
+{
+    struct stat file_stat;
+
+    lock_acquire(file->file_lock);
+
+    VOP_STAT(file->vnode, &file_stat);
+
+    if (whence == SEEK_SET) {
+        if (offset < 0)
+            return EINVAL;        
+
+        file->offset = offset;
+    } else if (whence == SEEK_CUR) {
+        if (file->offset + offset < 0)
+            return EINVAL;
+
+        file->offset += offset;
+    } else if (whence == SEEK_END) {
+        if (file_stat.st_size + offset < 0)
+            return EINVAL;
+
+        file->offset = file_stat.st_size + offset;
+    } else {
+        return EINVAL;
+    }
+
+    *offset_location = file->offset;
+
     lock_release(file->file_lock);
 
     return 0;
@@ -325,6 +361,9 @@ out:
 struct file *file_table_get(struct file_table *head, int fd)
 {
     struct file *file;
+
+    if (fd < 0 || fd >= OPEN_MAX)
+        return NULL;
 
     lock_acquire(head->table_lock);
     file = head->fd_array[fd];

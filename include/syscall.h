@@ -67,6 +67,8 @@ int sys_write(int fd, const_userptr_t buf, size_t nbyte, size_t *size_wrote);
 
 int sys_read(int fd, userptr_t buf, size_t nbyte, size_t *size_read);
 
+extern int sys_lseek(int fd, off_t offset, int whence, off_t *offset_location);
+
 extern void sys__exit(int status);
 
 extern int sys_waitpid(pid_t pid, userptr_t wstatus, int options, pid_t *exit_pid);

@@ -31,11 +31,16 @@
 #include <kern/errno.h>
 #include <kern/syscall.h>
 #include <lib.h>
+#include <copyinout.h>
 #include <mips/trapframe.h>
 #include <mips/specialreg.h>
 #include <thread.h>
 #include <current.h>
 #include <syscall.h>
+
+#define MAKE_64BIT(x, y) ((uint64_t)(x) << 32 | (y))
+#define GET_LO(x)        ((uint32_t)( (x) & 0x00000000ffffffff))
+#define GET_HI(x)        ((uint32_t)(((x) & 0xffffffff00000000) >> 32))
 
 /*
  * System call dispatcher.
@@ -78,8 +83,11 @@
 void syscall(struct trapframe *tf)
 {
 	int callno;
+	int whence;
 	int32_t retval;
+	uint64_t retval_64;
 	int err;
+	bool handle_64 = false;
 
 	KASSERT(curthread != NULL);
 	KASSERT(curthread->t_curspl == 0);
@@ -124,6 +132,19 @@ void syscall(struct trapframe *tf)
 						(userptr_t)tf->tf_a1,
 						(size_t)tf->tf_a2,
 						(size_t *)&retval);
+		break;
+
+	case SYS_lseek:
+		//get the value of whence from sp+16
+		err = copyin((const_userptr_t)tf->tf_sp + 16, &whence, sizeof(int));
+		if (err)
+			break;
+
+		handle_64 = true;
+		err = sys_lseek((int)tf->tf_a0,
+						(off_t)MAKE_64BIT(tf->tf_a2, tf->tf_a3),
+						(int)whence,
+						(off_t *)&retval_64);
 		break;
 
 	case SYS_waitpid:
@@ -180,6 +201,13 @@ void syscall(struct trapframe *tf)
 		 */
 		tf->tf_v0 = err;
 		tf->tf_a3 = 1; /* signal an error */
+	}
+	else if (handle_64)
+	{
+		/* Seccess. */
+		tf->tf_v0 = GET_HI(retval_64);
+		tf->tf_v1 = GET_LO(retval_64);
+		tf->tf_a3 = 0;	/* Signal no error */
 	}
 	else
 	{
