@@ -36,7 +36,7 @@ int atmu1(int argc, char **argv)
         return EINVAL;
     }
 
-    counter = ATOMIC_INIT(0);
+    INIT_ATOMIC(&counter, 0);
     n_thread = atoi(argv[1]);
     curr = curproc;
 

@@ -10,7 +10,12 @@ typedef volatile struct atomic_t {
     int counter;
 } atomic_t;
 
-#define ATOMIC_INIT(initial_counter) ((atomic_t){.counter = (initial_counter)})
+#define ATOMIC_INIT(initial_counter) {.counter = (initial_counter)}
+
+static inline void INIT_ATOMIC(atomic_t *atomic, int value)
+{
+    atomic->counter = value;
+}
 
 static inline int atomic_read(const atomic_t *atomic)
 {
