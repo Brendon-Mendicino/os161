@@ -25,9 +25,11 @@ static inline unsigned tlb_select_victim(void)
 		if (elo & TLBLO_VALID)
 			continue;
 
+		fstat_tlb_faults_with_free();
 		return i;
 	}
 
+	fstat_tlb_faults_with_replace();
 	return i;
 }
 
@@ -46,7 +48,6 @@ int vm_tlb_set_page(vaddr_t faultaddress, paddr_t paddr, bool writable)
 	index = tlb_probe(faultaddress & TLBHI_VPAGE, 0);
 	if (index == -1) {
 		index = tlb_select_victim();
-		fstat_tlb_faults_with_replace();
 	} else {
 		fstat_tlb_faults_with_free();
 	}
