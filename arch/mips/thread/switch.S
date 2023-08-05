@@ -43,6 +43,7 @@ switchframe_switch:
    /*
     * a0 contains the address of the switchframe pointer in the old thread.
     * a1 contains the address of the switchframe pointer in the new thread.
+    * a2 contains if the addrspace needs to be activated on return
     *
     * The switchframe pointer is really the stack pointer. The other
     * registers get saved on the stack, namely:
@@ -94,6 +95,7 @@ switchframe_switch:
    nop                  /* delay slot for load */
 
    /* and return. */
+   move v0, a2
    j ra
    addi sp, sp, 40      /* in delay slot */
    .end switchframe_switch

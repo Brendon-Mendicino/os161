@@ -67,7 +67,7 @@ void thread_machdep_cleanup(struct thread_machdep *tm);
  */
 
 /* Assembler-level context switch. */
-void switchframe_switch(struct switchframe **prev, struct switchframe **next);
+bool switchframe_switch(struct switchframe **prev, struct switchframe **next, bool activate_as);
 
 /* Thread initialization */
 void switchframe_init(struct thread *,
