@@ -9,6 +9,7 @@
 #include <proc.h>
 #include <vm_tlb.h>
 #include <spinlock.h>
+#include <fault_stat.h>
 #include <machine/tlb.h>
 
 
@@ -27,7 +28,7 @@ static inline unsigned tlb_select_victim(void)
 		return i;
 	}
 
-	return -1;
+	return i;
 }
 
 int vm_tlb_set_page(vaddr_t faultaddress, paddr_t paddr, bool writable)
@@ -43,8 +44,12 @@ int vm_tlb_set_page(vaddr_t faultaddress, paddr_t paddr, bool writable)
 	int spl = splhigh();
 
 	index = tlb_probe(faultaddress & TLBHI_VPAGE, 0);
-	if (index == -1)
+	if (index == -1) {
 		index = tlb_select_victim();
+		fstat_tlb_faults_with_replace();
+	} else {
+		fstat_tlb_faults_with_free();
+	}
 
 	ehi = faultaddress & TLBHI_VPAGE;
 	elo = (paddr & TLBLO_PPAGE) | (writable * TLBLO_DIRTY) | TLBLO_VALID;
@@ -80,39 +85,12 @@ void vm_tlb_set_readonly(void)
 	spinlock_release(&tlb_lock);
 }
 
-int vm_tlb_set_readable(vaddr_t addr, paddr_t paddr)
-{
-	uint32_t ehi, elo;
-	int index;
-
-	spinlock_acquire(&tlb_lock);
-	/* Disable interrupts on this CPU while frobbing the TLB. */
-	int spl = splhigh();
-
-	index = tlb_probe(addr & TLBHI_VPAGE, 0);
-	if (index == -1)
-		index = tlb_select_victim();
-
-	tlb_read(&ehi, &elo, index);
-
-	// if (!(elo & TLBLO_VALID))
-	// 	return EFAULT;
-
-	ehi = addr & TLBHI_VPAGE;
-	elo = (paddr & TLBLO_PPAGE) | TLBLO_DIRTY | TLBLO_VALID;
-
-	tlb_write(ehi, elo, index);
-
-	splx(spl);
-	spinlock_release(&tlb_lock);
-
-	return 0;
-}
-
 void vm_tlb_flush(void)
 {
 	int i;
 	int spl;
+
+	fstat_tlb_invalidations();
 
 	spinlock_acquire(&tlb_lock);
 	spl = splhigh();

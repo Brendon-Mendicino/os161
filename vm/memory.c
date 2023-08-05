@@ -5,6 +5,7 @@
 #include <proc.h>
 #include <vm_tlb.h>
 #include <page.h>
+#include <fault_stat.h>
 #include <kern/errno.h>
 
 static inline bool is_cow_mapping(area_flags_t flags)
@@ -31,6 +32,7 @@ static int page_not_present_fault(
 		retval = load_demand_page(as, fault_address, page_to_paddr(page));
 		if (retval)
 			goto cleanup_page;
+		fstat_page_faults_elf();
 	} else {
 		// TODO: temp
 		panic("missing page not from file!\n");
@@ -47,6 +49,7 @@ static int page_not_present_fault(
 	pte_set_page(pte, page_to_kvaddr(page), flags);
 	pt_inc_page_count(&as->pt, 1);
 
+	fstat_page_faults_disk();
 	vm_tlb_set_page(fault_address, page_to_paddr(page), page_write);
 	
 	return 0;
@@ -82,7 +85,7 @@ static int readonly_fault(
 	pte_clear(pte);
 	pte_set_page(pte, page_to_kvaddr(page), PAGE_PRESENT | PAGE_RW | PAGE_ACCESSED | PAGE_DIRTY);
 
-	retval = vm_tlb_set_readable(fault_address & PAGE_FRAME, page_to_paddr(page));
+	retval = vm_tlb_set_page(fault_address & PAGE_FRAME, page_to_paddr(page), true);
 	if (retval)
 		return retval;
 
@@ -107,6 +110,8 @@ static int vm_handle_fault(struct addrspace *as, vaddr_t fault_address, int faul
 	if (!pte_present(pte_entry)) {
 		return page_not_present_fault(as, area, pte, fault_address, fault_type);
 	}
+
+	fstat_tlb_realoads();
 
 	if (fault_type & VM_FAULT_READONLY) {
 		if (!pte_write(pte_entry)) {
@@ -150,6 +155,7 @@ int vm_fault(int faulttype, vaddr_t faultaddress)
     if (retval)
         return retval;
 
+	fstat_tlb_faults();
         
     return 0;
 }

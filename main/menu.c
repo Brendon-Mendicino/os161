@@ -46,6 +46,7 @@
 #include <vm.h>
 #include <test.h>
 #include <current.h>
+#include <fault_stat.h>
 #include "opt-sfs.h"
 #include "opt-net.h"
 #include "opt-syscalls.h"
@@ -392,6 +393,9 @@ cmd_memstat(int nargs, char **args)
 {
 	(void)nargs;
 	(void)args;
+
+	kprintf("\n");
+	fault_stat_print_info();
 
 	kprintf("\n");
 	kprintf("OS161 Memory usage statistics:\n");

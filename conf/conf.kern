@@ -361,6 +361,8 @@ optfile   paging vm/vm_tlb.c
 optfile   paging vm/vmstats.c
 optfile   paging vm/memory.c
 
+optfile   paging instrumentation/fault_stat.c
+
 defoption args
 
 #
