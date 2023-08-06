@@ -15,7 +15,13 @@
 
 static struct spinlock tlb_lock = SPINLOCK_INITIALIZER;
 
-static inline unsigned tlb_select_victim(void)
+/**
+ * @brief Select a victim entry from the tlb. If no entry
+ * is available return -1.
+ * 
+ * @return returns the index of next free entry.
+ */
+static inline int tlb_select_victim(void)
 {
 	uint32_t ehi, elo;
 	int i;
@@ -30,9 +36,18 @@ static inline unsigned tlb_select_victim(void)
 	}
 
 	fstat_tlb_faults_with_replace();
-	return i;
+	return -1;
 }
 
+/**
+ * @brief Set a page in the TLB. If no entry is free
+ * it uses a random replacement strategy.
+ * 
+ * @param faultaddress user virtual address
+ * @param paddr physical page the virtual address is mapped to
+ * @param writable page is writable
+ * @return error if any
+ */
 int vm_tlb_set_page(vaddr_t faultaddress, paddr_t paddr, bool writable)
 {
 	uint32_t ehi, elo;
@@ -55,13 +70,20 @@ int vm_tlb_set_page(vaddr_t faultaddress, paddr_t paddr, bool writable)
 	ehi = faultaddress & TLBHI_VPAGE;
 	elo = (paddr & TLBLO_PPAGE) | (writable * TLBLO_DIRTY) | TLBLO_VALID;
 
-	tlb_write(ehi, elo, index);
+	if (index != -1)
+		tlb_write(ehi, elo, index);
+	else
+		tlb_random(ehi, elo);
 
 	splx(spl);
 	spinlock_release(&tlb_lock);
 	return 0;
 }
 
+/**
+ * @brief Set every valid entry in the TLB as readonly.
+ * 
+ */
 void vm_tlb_set_readonly(void)
 {
 	uint32_t ehi, elo;
@@ -86,15 +108,19 @@ void vm_tlb_set_readonly(void)
 	spinlock_release(&tlb_lock);
 }
 
+/**
+ * @brief Invalidates the whole TLB.
+ * 
+ */
 void vm_tlb_flush(void)
 {
 	int i;
 	int spl;
 
-	fstat_tlb_invalidations();
-
 	spinlock_acquire(&tlb_lock);
 	spl = splhigh();
+
+	fstat_tlb_invalidations();
 
 	for (i = 0; i < NUM_TLB; i += 1) {
 		tlb_write(TLBHI_INVALID(i), TLBLO_INVALID(), i);
