@@ -192,6 +192,8 @@ static struct page *get_free_pages(struct zone *zone, unsigned order)
 		del_page_from_free_list(zone, page, current_order);
 		buddy_expand(zone, page, order, current_order);
 
+		zone->alloc_pages += 1 << order;
+
 		page_set_order(page, order);
 		return page;
 	}
@@ -210,6 +212,8 @@ static struct page *get_free_pages(struct zone *zone, unsigned order)
 static void free_alloc_pages(struct zone *zone, struct page *page, unsigned order)	
 {
 	struct page *buddy;
+
+	zone->alloc_pages -= 1 << order;
 
 	while (order < MAX_ORDER) {
 		buddy = find_buddy_page(page, order);
@@ -254,6 +258,8 @@ zone_bootstrap(void)
 	
 	zone->last_valid_addr = PADDR_TO_KVADDR(ram_getsize());
 	zone->first_valid_addr = ROUNDUP(PADDR_TO_KVADDR(ram_getfirstfree()), PAGE_SIZE << MAX_ORDER);
+	zone->alloc_pages = 0;
+	zone->total_pages = (zone->last_valid_addr - zone->first_valid_addr) / PAGE_SIZE;
 
 	for_each_free_area(zone->free_area, area, order) {
 		INIT_LIST_HEAD(&area->free_list);
@@ -276,7 +282,7 @@ static void zone_print_info(void)
 {
 	kprintf("vm initiazed with:\n");
 	kprintf("\t%10d: total physical pages\n", total_pages);
-	kprintf("\t%10d: available physical pages\n", (main_zone.last_valid_addr - main_zone.first_valid_addr) / PAGE_SIZE);
+	kprintf("\t%10d: available physical pages\n", main_zone.total_pages);
 	kprintf("\t0x%08x: first available address\n", main_zone.first_valid_addr);
 	kprintf("\t0x%08x: last available address\n", main_zone.last_valid_addr);
 	kprintf("\n");
@@ -319,6 +325,9 @@ static void page_print_info(void)
 
 	kprintf("allocated pages:\t%8d\n", alloc_pages);
 	kprintf("free pages:\t\t%8d\n", free_pages);
+
+	if (alloc_pages != main_zone.alloc_pages)
+		kprintf("[Warning] Calculated alloc pages are differnt from the ones stored in main_zone!\n");
 }
 
 /*

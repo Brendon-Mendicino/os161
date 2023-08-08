@@ -88,6 +88,8 @@ struct free_area {
 struct zone {
     vaddr_t             first_valid_addr;
     vaddr_t             last_valid_addr;
+    size_t              alloc_pages;
+    size_t              total_pages;
     struct free_area    free_area[MAX_ORDER + 1];
 };
 
