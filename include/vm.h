@@ -79,10 +79,15 @@ struct free_area {
     size_t              n_free;         /* Number of pages in the free_list */
 };
 
-
+/**
+ * Memory zone of the RAM. In OS161 there is no distinction,
+ * not being NUMA mapped or other mappings, so there
+ * is only one which maps the whole memory.
+ * 
+ */
 struct zone {
-    vaddr_t first_valid_addr;
-    vaddr_t last_valid_addr;
+    vaddr_t             first_valid_addr;
+    vaddr_t             last_valid_addr;
     struct free_area    free_area[MAX_ORDER + 1];
 };
 

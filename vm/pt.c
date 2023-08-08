@@ -88,10 +88,10 @@ static size_t pte_free_table(pte_t *pte)
     size_t freed_pages = 0;
     size_t i;
 
-    // TODO: add check for page refcount
+    // TODO: add check for swap page
     /* free pages */
     for (i = 0; i < PTRS_PER_PTE; i++) {
-        if (!pte_present(pte[i]))
+        if (pte_none(pte[i]))
             continue;
 
         page = pte_page(pte[i]);
@@ -127,7 +127,7 @@ static int pte_alloc_page_range(pte_t *pte, vaddr_t start, vaddr_t end, struct p
             start += PAGE_SIZE,
             pte_entry = &pte[pte_index(start)])
     {
-        if (pte_present(*pte_entry)) {
+        if (!pte_none(*pte_entry)) {
             // pte_clear_flags(pte_entry);
             // pte_set_flags(pte_entry, page_flags);
             continue;
@@ -276,9 +276,6 @@ void pt_destroy(struct page_table *pt)
     KASSERT(pt != NULL);
     KASSERT(pt->pmd != NULL);
 
-    // TODO: do a recursive delete and check for refcount
-    //...
-
     pt->total_pages -= pmd_free_table(pt->pmd);
 
     KASSERT(pt->total_pages == 0);
@@ -341,7 +338,7 @@ int pt_alloc_page(struct page_table *pt, vaddr_t addr, struct pt_page_flags flag
 
     pte_entry = pte_offset(pmd_entry, addr);
     /* allocate a page if it is not present */
-    if (!pte_present(*pte_entry)) {
+    if (pte_none(*pte_entry)) {
         page = alloc_user_zeroed_page();
         if (!page)
             return ENOMEM;
@@ -422,7 +419,7 @@ int pt_copy(struct page_table *new, struct page_table *old)
 
         old_pte = pmd_ptetable(old->pmd[i]);
         for (j = 0; j < PTRS_PER_PTE; j++) {
-            if (!pte_present(old_pte[j]))
+            if (pte_none(old_pte[j]))
                 continue;
 
             page = pte_page(old_pte[j]);

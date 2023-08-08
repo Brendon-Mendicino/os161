@@ -11,6 +11,7 @@
 #define _PAGE_BIT_PWT       3    /* page write through */
 #define _PAGE_BIT_ACCESSED  5    /* was accessed (raised by CPU) */
 #define _PAGE_BIT_DIRTY     6    /* was written to (raised by CPU) */
+#define _PAGE_BIT_SWAP      7    /* page in swap memory */
 
 typedef enum pteflags_t {
     PAGE_PRESENT    = (1 << _PAGE_BIT_PRESENT),     /* is present */
@@ -18,6 +19,7 @@ typedef enum pteflags_t {
     PAGE_PWT        = (1 << _PAGE_BIT_PWT),         /* page write through */
     PAGE_ACCESSED   = (1 << _PAGE_BIT_ACCESSED),    /* was accessed (raised by CPU) */
     PAGE_DIRTY      = (1 << _PAGE_BIT_DIRTY),       /* was written to (raised by CPU) */
+    PAGE_SWAP       = (1 << _PAGE_BIT_SWAP),        /* page in swap memory */
 } pteflags_t;
 
 typedef enum pmdflags_t {
@@ -190,7 +192,7 @@ static inline void pte_clean_table(pte_t *pte)
  */
 static inline void pte_set_page(pte_t *pte_entry, vaddr_t page_addr, pteflags_t flags)
 { 
-    KASSERT(!pte_present(*pte_entry));
+    KASSERT(pte_none(*pte_entry));
 
     /* reset pte pointer */
     pte_entry->pteval &= PTE_FLAGS_MASK;
