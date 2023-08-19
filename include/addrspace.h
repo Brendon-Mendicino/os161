@@ -151,19 +151,23 @@ extern struct addrspace_area *as_find_area(struct addrspace *as, vaddr_t addr);
 #if OPT_PAGING
 #define __read_segment(vnode, offset, elf_segment) \
 ({                              \
-    struct iovec iovec;                 \
-    struct uio ku;                      \
-    int retval;                         \
-    uio_kinit(&iovec, &ku, (elf_segment), sizeof(*(elf_segment)), offset, UIO_READ);    \
-    retval = VOP_READ(vnode, &ku);      \
-    if (ku.uio_resid != 0 && !retval) {            \
+    struct iovec __iovec;                 \
+    struct uio __ku;                      \
+    int __retval;                         \
+    uio_kinit(&__iovec, &__ku, (elf_segment), sizeof(*(elf_segment)), offset, UIO_READ);    \
+    __retval = VOP_READ(vnode, &__ku);      \
+    if (__ku.uio_resid != 0 && !__retval) {            \
         /* short read; problem with executable? */      \
         kprintf("ELF: short read on phdr - file truncated?\n");     \
-        retval = ENOEXEC;           \
+        __retval = ENOEXEC;           \
     }                               \
-    retval;                         \
+    __retval;                         \
 })
 
+/**
+ * @brief Iterates over each segment of an ELF file.
+ * 
+ */
 #define for_each_segment(retval, vnode, elf_header, elf_segment)                            \
     for(off_t __index = 0,                                                                  \
         __offset = (elf_header)->e_phoff + __index * (elf_header)->e_phentsize,             \

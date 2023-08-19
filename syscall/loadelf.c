@@ -363,52 +363,14 @@ load_elf(struct vnode *v, vaddr_t *entrypoint)
 {
 	Elf_Ehdr eh;   /* Executable header */
 	Elf_Phdr ph;   /* "Program header" = segment header */
-	int result, i;
-	struct iovec iov;
-	struct uio ku;
+	int result;
 	struct addrspace *as;
 
 	as = proc_getas();
 
-	/*
-	 * Read the executable header from offset 0 in the file.
-	 */
-
-	uio_kinit(&iov, &ku, &eh, sizeof(eh), 0, UIO_READ);
-	result = VOP_READ(v, &ku);
-	if (result) {
+	result = load_elf_header(v, &eh);
+	if (result)
 		return result;
-	}
-
-	if (ku.uio_resid != 0) {
-		/* short read; problem with executable? */
-		kprintf("ELF: short read on header - file truncated?\n");
-		return ENOEXEC;
-	}
-
-	/*
-	 * Check to make sure it's a 32-bit ELF-version-1 executable
-	 * for our processor type. If it's not, we can't run it.
-	 *
-	 * Ignore EI_OSABI and EI_ABIVERSION - properly, we should
-	 * define our own, but that would require tinkering with the
-	 * linker to have it emit our magic numbers instead of the
-	 * default ones. (If the linker even supports these fields,
-	 * which were not in the original elf spec.)
-	 */
-
-	if (eh.e_ident[EI_MAG0] != ELFMAG0 ||
-	    eh.e_ident[EI_MAG1] != ELFMAG1 ||
-	    eh.e_ident[EI_MAG2] != ELFMAG2 ||
-	    eh.e_ident[EI_MAG3] != ELFMAG3 ||
-	    eh.e_ident[EI_CLASS] != ELFCLASS32 ||
-	    eh.e_ident[EI_DATA] != ELFDATA2MSB ||
-	    eh.e_ident[EI_VERSION] != EV_CURRENT ||
-	    eh.e_version != EV_CURRENT ||
-	    eh.e_type!=ET_EXEC ||
-	    eh.e_machine!=EM_MACHINE) {
-		return ENOEXEC;
-	}
 
 	/*
 	 * Go through the list of segments and set up the address space.
@@ -424,21 +386,9 @@ load_elf(struct vnode *v, vaddr_t *entrypoint)
 	 * might have a larger structure, so we must use e_phentsize
 	 * to find where the phdr starts.
 	 */
-
-	for (i=0; i<eh.e_phnum; i++) {
-		off_t offset = eh.e_phoff + i*eh.e_phentsize;
-		uio_kinit(&iov, &ku, &ph, sizeof(ph), offset, UIO_READ);
-
-		result = VOP_READ(v, &ku);
-		if (result) {
+	for_each_segment(result, v, &eh, &ph) {
+		if (result)
 			return result;
-		}
-
-		if (ku.uio_resid != 0) {
-			/* short read; problem with executable? */
-			kprintf("ELF: short read on phdr - file truncated?\n");
-			return ENOEXEC;
-		}
 
 		switch (ph.p_type) {
 		    case PT_NULL: /* skip */ continue;
@@ -473,21 +423,9 @@ load_elf(struct vnode *v, vaddr_t *entrypoint)
 	/*
 	 * Now actually load each segment.
 	 */
-
-	for (i=0; i<eh.e_phnum; i++) {
-		off_t offset = eh.e_phoff + i*eh.e_phentsize;
-		uio_kinit(&iov, &ku, &ph, sizeof(ph), offset, UIO_READ);
-
-		result = VOP_READ(v, &ku);
-		if (result) {
+	for_each_segment(result, v, &eh, &ph) {
+		if (result)
 			return result;
-		}
-
-		if (ku.uio_resid != 0) {
-			/* short read; problem with executable? */
-			kprintf("ELF: short read on phdr - file truncated?\n");
-			return ENOEXEC;
-		}
 
 		switch (ph.p_type) {
 		    case PT_NULL: /* skip */ continue;
