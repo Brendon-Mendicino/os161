@@ -243,8 +243,9 @@ __proc_destroy(struct proc *proc)
 #if OPT_SYSCALLS
 	KASSERT(proc->pid == -1);
 
-	KASSERT(list_empty(&proc->children));
-	KASSERT(list_empty(&proc->siblings));
+	// TODO: implemet this when the init proc will receive zombie children
+	// KASSERT(list_empty(&proc->children));
+	// KASSERT(list_empty(&proc->siblings));
 
 	cv_destroy(proc->wait_cv);
 	lock_destroy(proc->wait_lock);

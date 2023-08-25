@@ -129,3 +129,25 @@ void vm_tlb_flush(void)
 	splx(spl);
 	spinlock_release(&tlb_lock);
 }
+
+/**
+ * @brief Invalidates one entry of the TLB if present.
+ * 
+ * @param addr virtual address to invalidate
+ */
+void vm_tlb_flush_one(vaddr_t addr)
+{
+	int spl;
+	int index;
+
+	spinlock_acquire(&tlb_lock);
+	spl = splhigh();
+
+	index = tlb_probe(addr & TLBHI_VPAGE, 0);
+
+	if (index >= 0)
+		tlb_write(TLBHI_INVALID(index), TLBLO_INVALID(), index);
+
+	splx(spl);
+	spinlock_release(&tlb_lock);
+}

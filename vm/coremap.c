@@ -7,6 +7,11 @@
 #include <getorder.h>
 #include <cpu.h>
 #include <current.h>
+#include <proc.h>
+#include <page.h>
+#include <swap.h>
+#include <vm_tlb.h>
+#include <kern/errno.h>
 
 #include "opt-allocator.h"
 
@@ -30,7 +35,75 @@ size_t total_pages = 0;
  */
 static struct zone main_zone;
 
+static inline bool above_page_swap_threshold(struct zone *zone)
+{
+	return SWAP_PAGE_THRESHOLD(zone->total_pages, zone->alloc_pages);
+}
 
+static inline bool vm_may_perform_swap(void)
+{
+	struct proc *curr = curproc;
+
+	// Check if we are in a kernel process
+	if (curr == NULL)
+		return false;
+
+	return above_page_swap_threshold(&main_zone);
+}
+
+static walk_action_t choose_victim_page(struct page_table *pt, pte_t *pte, vaddr_t page_addr)
+{
+	int retval;
+	struct page *page;
+	swap_entry_t entry;
+
+	if (!pte_present(*pte) || pte_swap(*pte))
+		return WALK_REPEAT;
+
+	vm_tlb_flush_one(page_addr);
+
+	if (pte_accessed(*pte)) {
+		pte_clear_accessed(pte);
+		return WALK_REPEAT;
+	}
+
+	page = pte_page(*pte);
+	page = READ_ONCE(page);
+	KASSERT(page->flags == PGF_USER);
+
+	if (user_page_mapcount(page) > 1)
+		return WALK_REPEAT;
+
+	retval = swap_add_page(page, &entry);
+	if (retval)
+		panic("Could not add a page to the swap memory, page address: %08x\n", (unsigned)page);
+
+	if (!user_page_put(page))
+		panic("Page was not freed when moved to the swap memory!\n");
+
+	pte_set_swap(pte, entry);
+
+	pt_inc_page_count(pt, -1);
+
+	return WALK_BREAK;
+}
+
+static int vm_try_swapin_page(void)
+{
+	struct addrspace *as;
+	struct proc *curr = curproc;
+
+	// Check if we are in a kernel process
+	if (curr == NULL)
+		return EINVAL;
+
+	as = proc_getas();
+	if (as == NULL)
+		return EINVAL;
+
+	// TODO: refactor: use walk_addrspace
+	return pt_walk_page_table(&as->pt, 0, USERSPACETOP, choose_victim_page);
+}
 
 /*
  * Locate the struct page for both the matching buddy in our
@@ -162,6 +235,7 @@ static void buddy_expand(struct zone *zone, struct page *page, unsigned low_orde
 		high_order -= 1;
 		size = size >> 1;
 
+		KASSERT(page[size].flags == PGF_INIT);
 		buddy_page_init(&page[size]);
 		add_page_to_free_list(zone, &page[size], high_order);
 	}
@@ -189,6 +263,7 @@ static struct page *get_free_pages(struct zone *zone, unsigned order)
 		if (!page)
 			continue;
 
+		KASSERT(page->flags == PGF_BUDDY);
 		del_page_from_free_list(zone, page, current_order);
 		buddy_expand(zone, page, order, current_order);
 
@@ -219,6 +294,9 @@ static void free_alloc_pages(struct zone *zone, struct page *page, unsigned orde
 		buddy = find_buddy_page(page, order);
 		if (!buddy)
 			break;
+
+		KASSERT(buddy->flags == PGF_BUDDY);
+		KASSERT(buddy->buddy_order == order);
 
 		del_page_from_free_list(zone, buddy, order);
 
@@ -376,6 +454,8 @@ alloc_kpages(unsigned npages)
 	if (!page)
 		return 0;
 
+	kernel_page_init(page);
+
 	return page_to_kvaddr(page);
 }
 
@@ -429,18 +509,28 @@ vm_kpages_stats(void)
 struct page *alloc_pages(size_t npages)
 {
 	struct page *page;
+	bool do_swap_page;
 
 	vm_can_sleep();
 
+	compiletime_assert(get_order(1) == 0, "Order of 1 is not 0!");
 	unsigned order = get_order(npages);
 
 	spinlock_acquire(&mem_lock);
 	page = get_free_pages(&main_zone, order);
+	do_swap_page = vm_may_perform_swap();
 	spinlock_release(&mem_lock);
 
-	// TODO: just for testing
-	page->flags = PGF_KERN;
+	/*
+	 * If the memory is filling up and we are
+	 * in a user process try to move some
+	 * page to the swap memory.
+	 */
+	if (do_swap_page)
+		vm_try_swapin_page();
 
+	if (page)
+		KASSERT(page->buddy_order == (unsigned)get_order(npages));
 	return page;
 }
 
@@ -473,6 +563,8 @@ struct page *alloc_user_zeroed_page(void)
 	page = alloc_pages(1);
 	if (!page)
 		return NULL;
+
+	KASSERT(page->buddy_order == 0);
 
 	user_page_init(page);
 	clear_page(page);

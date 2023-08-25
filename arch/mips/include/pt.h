@@ -4,6 +4,7 @@
 #include <compiler_types.h>
 #include <types.h>
 #include <lib.h>
+#include <swap_types.h>
 #include <machine/vm.h>
 
 #define _PAGE_BIT_PRESENT   0    /* is present */
@@ -44,6 +45,7 @@ typedef struct pmd_t {
  */
 typedef struct pte_t {
     union {
+        swap_entry_t swap_entry; /* entry of the page inside swap memory */
         vaddr_t    pteval;      /* value of the pte entry */
         pteflags_t pteflags;    /* flags of the pte entry */
     };
@@ -147,6 +149,11 @@ static inline void pte_set_flags(pte_t *pte, pteflags_t flags)
     pte->pteflags |= flags;
 }
 
+static inline void pte_clear_value(pte_t *pte)
+{
+    pte->pteval &= PTE_FLAGS_MASK;
+}
+
 static inline void pte_clear_flags(pte_t *pte)
 {
     pte->pteflags &= ~PTE_FLAGS_MASK;
@@ -167,9 +174,47 @@ static inline bool pte_present(pte_t pte)
     return (pte_flags(pte) & PAGE_PRESENT) == PAGE_PRESENT;
 }
 
+static inline bool pte_accessed(pte_t pte)
+{
+    return (pte_flags(pte) & PAGE_ACCESSED) == PAGE_ACCESSED;
+}
+
+static inline bool pte_swap_mapped(pte_t pte)
+{
+    return (pte_flags(pte) & PAGE_SWAP) == PAGE_SWAP;
+}
+
 static inline bool pte_write(pte_t pte)
 {
     return (pte_flags(pte) & PAGE_RW) == PAGE_RW;
+}
+
+static inline void pte_clear_accessed(pte_t *pte)
+{
+    pte->pteflags &= ~PAGE_ACCESSED;
+}
+
+static inline bool pte_swap(pte_t pte)
+{
+    return (pte_flags(pte) & PAGE_SWAP) == PAGE_SWAP;
+}
+
+static inline void pte_set_swap(pte_t *pte, swap_entry_t entry)
+{
+    pte_clear_value(pte);
+    pte->swap_entry.val |= entry.val & ~PTE_FLAGS_MASK;
+
+    /* Set PAGE_SWAP */
+    pte->pteflags |= PAGE_SWAP;
+    /* Clear PAGE_PRESENT */
+    pte->pteflags &= ~PAGE_PRESENT;
+}
+
+static inline swap_entry_t pte_swap_entry(pte_t pte)
+{
+    swap_entry_t ret = pte.swap_entry;
+    ret.val &= ~PTE_FLAGS_MASK;
+    return ret;
 }
 
 /**

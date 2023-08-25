@@ -36,13 +36,9 @@ struct page {
         page_flags_t    flags;
 
         union {
-                struct {
-                        struct list_head buddy_list;
-                };
+                struct list_head buddy_list;
 
-                struct {
-                        refcount_t      _mapcount;    /* User usage count, increased when a page becomes COW */
-                };
+                refcount_t      _mapcount;    /* User usage count, increased when a page becomes COW */
         };
 
         /*
@@ -90,6 +86,8 @@ struct addrspace_area {
          * in the interval [area_start, area_end)
          */
         vaddr_t area_start, area_end;
+
+        // off_t seg_offset;               /* Offset of the segment within the source file */
 };
 
 

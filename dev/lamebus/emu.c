@@ -892,11 +892,23 @@ emufs_link(struct vnode *v, const char *name, struct vnode *target)
 
 static
 int
-emufs_remove(struct vnode *v, const char *name)
+emufs_remove(struct vnode *dir, const char *name)
 {
-	(void)v;
-	(void)name;
-	return ENOSYS;
+	struct vnode *child;
+	int retval;
+	
+	retval = emufs_lookup(dir, (char *)name, &child);
+	if (retval)
+		return retval;
+
+	if (child->vn_refcount > 1)
+		return EBUSY;
+
+	retval = emufs_reclaim(child);
+	if (retval)
+		return retval;
+
+	return 0;
 }
 
 static

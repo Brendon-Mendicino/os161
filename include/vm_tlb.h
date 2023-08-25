@@ -9,4 +9,6 @@ extern void vm_tlb_set_readonly(void);
 
 extern void vm_tlb_flush(void);
 
+void vm_tlb_flush_one(vaddr_t addr);
+
 #endif // _VM_TLB_H_

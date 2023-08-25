@@ -77,6 +77,10 @@
         "cerrno": "c",
         "size_t.h": "c",
         "null.h": "c",
-        "stat.h": "c"
+        "stat.h": "c",
+        "random.h": "c",
+        "device.h": "c",
+        "swap.h": "c",
+        "fcntl.h": "c"
     }
 }

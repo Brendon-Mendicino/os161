@@ -6,6 +6,7 @@
 #include <vm_tlb.h>
 #include <page.h>
 #include <fault_stat.h>
+#include <swap.h>
 #include <kern/errno.h>
 
 static inline bool is_cow_mapping(area_flags_t flags)
@@ -27,15 +28,23 @@ static int page_not_present_fault(
 	if (!page)
 		return ENOMEM;
 
+	/* load page from swap memory */
+	if (pte_swap_mapped(*pte)) {
+		retval = swap_get_page(page, pte_swap_entry(*pte));
+		if (retval)
+			goto cleanup_page;
+
+		fstat_page_faults_swap();
+	}
 	/* load page from memory if file mapped */
-	if (asa_file_mapped(area)) {
+	else if (pte_none(*pte) && asa_file_mapped(area)) {
 		retval = load_demand_page(as, fault_address, page_to_paddr(page));
 		if (retval)
 			goto cleanup_page;
+
 		fstat_page_faults_elf();
 	} else {
-		// TODO: temp
-		panic("missing page not from file!\n");
+		panic("Don't know what kind of pte faulted!\n");
 	}
 
 	bool page_write = asa_write(area);
@@ -46,6 +55,7 @@ static int page_not_present_fault(
 					   (page_dirty * PAGE_DIRTY) |
 					   (page_write * PAGE_RW);
 
+	pte_clear(pte);
 	pte_set_page(pte, page_to_kvaddr(page), flags);
 	pt_inc_page_count(&as->pt, 1);
 
@@ -80,6 +90,13 @@ static int readonly_fault(
 
 	if (is_cow_mapping(area->area_flags)) {
 		page = user_page_copy(page);
+	}
+
+	if (!page) {
+		pte_clear(pte);
+		pt_inc_page_count(&as->pt, -1);
+		vm_tlb_flush_one(fault_address);
+		return ENOMEM;
 	}
 
 	pte_clear(pte);

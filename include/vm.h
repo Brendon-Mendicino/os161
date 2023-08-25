@@ -50,6 +50,7 @@ typedef enum fault_value_t {
     FAULT_NOMEM,
 } fault_value_t ;
 
+#define SWAP_PAGE_THRESHOLD(max, curr) (curr > ((90 * (max)) / 100))
 
 /*
  * In OS161 the RAM size is very limited, so we keep the size
@@ -162,6 +163,13 @@ user_page_init(struct page *page)
     page->flags = PGF_USER;
     page->_mapcount = REFCOUNT_INIT(1);
     page->virtual = 0;
+}
+
+static inline void
+kernel_page_init(struct page *page)
+{
+    // TODO: rivedere
+    page->flags = PGF_KERN;
 }
 
 static inline void

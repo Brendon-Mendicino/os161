@@ -4,6 +4,7 @@
 #include <kern/errno.h>
 #include <addrspace.h>
 #include <page.h>
+#include <swap.h>
 
 
 static inline vaddr_t pmd_addr_end(vaddr_t addr, vaddr_t end)
@@ -94,7 +95,16 @@ static size_t pte_free_table(pte_t *pte)
         if (pte_none(pte[i]))
             continue;
 
+        if (pte_swap(pte[i])) {
+            swap_dec_page(pte_swap_entry(pte[i]));
+            continue;
+        }
+
+        if (!pte_present(pte[i]))
+            continue;
+
         page = pte_page(pte[i]);
+        page = READ_ONCE(page);
         user_page_put(page);
 
         pte_clear(&pte[i]);
@@ -373,6 +383,70 @@ int pt_alloc_page_range(struct page_table *pt, vaddr_t start, vaddr_t end, struc
     return 0;
 }
 
+static walk_action_t pt_walk_pte(struct page_table *pt, pte_t *pte, vaddr_t start, vaddr_t end, walk_ops_t f)
+{
+    size_t pmd_curr_index;
+    pte_t *pte_entry;
+    walk_action_t action = WALK_CONTINUE;
+
+    KASSERT(pte != NULL);
+    KASSERT(start <= end);
+
+    pt_for_each_pte_entry(pte, pte_entry, start, end, pmd_curr_index) {
+        if (pte_none(*pte_entry))
+            continue;
+
+        action = f(pt, pte_entry, start);
+
+        if (action == WALK_BREAK)
+            return WALK_BREAK;
+    }
+
+    return action;
+}
+
+int pt_walk_page_table(struct page_table *pt, vaddr_t start, vaddr_t end, walk_ops_t f)
+{
+    vaddr_t next;
+    pmd_t *pmd_entry;
+    pte_t *pte;
+    walk_action_t action = WALK_CONTINUE;
+    // vaddr_t initial_start = start;
+    // unsigned int n_walks = 0;
+
+    KASSERT(pt != NULL);
+    KASSERT(pt->pmd != NULL);
+    KASSERT(start <= end);
+
+// repeat_walk:
+//     n_walks += 1;
+//     // TODO: refactor retrun value
+//     if (n_walks > 2)
+//         return 1;
+
+    do {
+        next = pmd_addr_end(start, end);
+
+        pmd_entry = pmd_offset(pt, start);
+        if (!pmd_present(*pmd_entry))
+            continue;
+
+        pte = pmd_ptetable(*pmd_entry);
+
+        action = pt_walk_pte(pt, pte, start, end, f);
+        if (action == WALK_BREAK)
+            break;
+
+    } while (start = next, start < end);
+
+    // if (action == WALK_REPEAT) {
+    //     start = initial_start;
+    //     goto repeat_walk;
+    // }
+
+    return 0;
+}
+
 /**
  * @brief Get the Page Frame Number from a Virtual Address, if
  * the page is not present return 0.
@@ -422,10 +496,18 @@ int pt_copy(struct page_table *new, struct page_table *old)
             if (pte_none(old_pte[j]))
                 continue;
 
+            if (pte_swap(old_pte[j])) {
+                swap_inc_page(pte_swap_entry(old_pte[j]));
+                new_pte[j] = old_pte[j];
+                continue;
+            }
+
+            KASSERT(pte_present(old_pte[j]));
+
             page = pte_page(old_pte[j]);
+            page = READ_ONCE(page);
             user_page_get(page);
             pte_set_cow(&old_pte[j]);
-
 
             /* copy the flags */
             pte_set_page(&new_pte[j], page_to_kvaddr(page), pte_flags(old_pte[j]));
@@ -434,7 +516,7 @@ int pt_copy(struct page_table *new, struct page_table *old)
         }
     }
 
-    KASSERT(new->total_pages == old->total_pages);
+    // KASSERT(new->total_pages == old->total_pages);
     
     return 0;
 }

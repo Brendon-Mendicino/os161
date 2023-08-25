@@ -48,6 +48,7 @@
 #include <device.h>
 #include <syscall.h>
 #include <test.h>
+#include <swap.h>
 #include <version.h>
 #include "autoconf.h"  // for pseudoconfig
 
@@ -130,6 +131,8 @@ boot(void)
 
 	/* Default bootfs - but ignore failure, in case emu0 doesn't exist */
 	vfs_setbootfs("emu0");
+
+	swap_bootsrap();
 
 	kheap_nextgeneration();
 
