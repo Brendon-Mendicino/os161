@@ -126,7 +126,10 @@ void              as_deactivate(void);
 void              as_destroy(struct addrspace *);
 
 int               as_define_region(struct addrspace *as,
-                                   vaddr_t vaddr, size_t sz,
+                                   vaddr_t vaddr,
+                                   size_t sz,
+                                   size_t seg_size,
+                                   off_t seg_offset,
                                    int readable,
                                    int writeable,
                                    int executable);
@@ -177,7 +180,7 @@ extern struct addrspace_area *as_find_area(struct addrspace *as, vaddr_t addr);
         __offset = (elf_header)->e_phoff + __index * (elf_header)->e_phentsize,             \
         retval = __read_segment(vnode, __offset, elf_segment))
 
-extern int load_demand_page(struct addrspace *as, vaddr_t fault_address, paddr_t paddr);
+extern int load_demand_page(struct addrspace *as, struct addrspace_area *area, vaddr_t fault_address, paddr_t paddr);
 #endif // OPT_PAGING
 
 int load_elf(struct vnode *v, vaddr_t *entrypoint);

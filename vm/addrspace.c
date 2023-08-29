@@ -41,11 +41,17 @@
 #include <vm_tlb.h>
 
 static struct addrspace_area *
-as_create_area(vaddr_t start, vaddr_t end, area_flags_t flags, area_type_t type)
+as_create_area(vaddr_t start,
+	vaddr_t end, 
+	size_t seg_size,
+	off_t seg_offset, 
+	area_flags_t flags,
+	area_type_t type)
 {
 	struct  addrspace_area *area;
 
 	KASSERT(start < end);
+	KASSERT((type == ASA_TYPE_FILE) ? true : ((seg_size == 0) && (seg_offset == 0)));
 
 	area = kmalloc(sizeof(struct addrspace_area));
 	if (!area)
@@ -53,6 +59,8 @@ as_create_area(vaddr_t start, vaddr_t end, area_flags_t flags, area_type_t type)
 
 	area->area_start = start;
 	area->area_end = end;
+	area->seg_size = seg_size;
+	area->seg_offset = seg_offset;
 	area->area_flags = flags;
 	area->area_type = type;
 
@@ -260,8 +268,14 @@ as_deactivate(void)
  * want to implement them.
  */
 int
-as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize,
-		 int readable, int writeable, int executable)
+as_define_region(struct addrspace *as,
+		vaddr_t vaddr,
+		size_t memsize,
+		size_t seg_size,
+		off_t seg_offset,
+		int readable,
+		int writeable,
+		int executable)
 {
 	int retval;
 	struct addrspace_area *area;
@@ -273,6 +287,8 @@ as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize,
 
 	area = as_create_area(vaddr,
 			vaddr + memsize,
+			seg_size,
+			seg_offset,
 			flags,
 			ASA_TYPE_FILE);
 	if (!area)
@@ -344,7 +360,7 @@ as_define_stack(struct addrspace *as, vaddr_t *stackptr)
 	if (retval)
 		return retval;
 
-	area = as_create_area(as->start_stack, as->end_stack, AS_AREA_READ | AS_AREA_WRITE, ASA_TYPE_STACK);
+	area = as_create_area(as->start_stack, as->end_stack, 0, 0, AS_AREA_READ | AS_AREA_WRITE, ASA_TYPE_STACK);
 	if (!area)
 		return ENOMEM;
 
@@ -424,7 +440,7 @@ int as_define_args(struct addrspace *as, int argc, char **argv, userptr_t *uargv
 	/* end is not inclusive */
 	as->end_arg = as->start_arg + arg_map_size;
 
-	area = as_create_area(as->start_arg, as->end_arg, AS_AREA_READ, ASA_TYPE_ARGS);
+	area = as_create_area(as->start_arg, as->end_arg, 0, 0, AS_AREA_READ, ASA_TYPE_ARGS);
 	if (!area)
 		return ENOMEM;
 

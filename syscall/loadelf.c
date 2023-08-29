@@ -264,7 +264,7 @@ static int load_elf_header(struct vnode *v, Elf_Ehdr *eh)
 	return 0;
 }
 
-static int load_page(struct addrspace *as, Elf_Phdr *ph, vaddr_t address, paddr_t paddr)
+int load_demand_page(struct addrspace *as, struct addrspace_area *area, vaddr_t fault_address, paddr_t paddr)
 {
 	int retval;
 	off_t page_offset, file_offset;
@@ -275,23 +275,23 @@ static int load_page(struct addrspace *as, Elf_Phdr *ph, vaddr_t address, paddr_
 	 * Calculate the offset of the page to be
 	 * loaded inside the segment
 	 */
-	KASSERT(address >= ph->p_vaddr);
+	KASSERT(fault_address >= area->area_start);
 
 	/* align the offset with the begenning of a page */
-	if ((address & PAGE_FRAME) > ph->p_vaddr) {
-		page_offset = (address & PAGE_FRAME) - ph->p_vaddr;
+	if ((fault_address & PAGE_FRAME) > area->area_start) {
+		page_offset = (fault_address & PAGE_FRAME) - area->area_start;
 	} else {
 		page_offset = 0;
 	}
 
-	file_offset = ph->p_offset + page_offset;
-	KASSERT((page_offset == 0) || PAGE_ALIGNED(ph->p_vaddr + page_offset));
+	file_offset = area->seg_offset + page_offset;
+	KASSERT((page_offset == 0) || PAGE_ALIGNED(area->area_start + page_offset));
 
-	vaddr = PADDR_TO_KVADDR(paddr) + ((ph->p_vaddr + page_offset) % PAGE_SIZE);
+	vaddr = PADDR_TO_KVADDR(paddr) + ((area->area_start + page_offset) % PAGE_SIZE);
 
-	memsize = PAGE_SIZE - ((ph->p_vaddr + page_offset) % PAGE_SIZE);
+	memsize = PAGE_SIZE - ((area->area_start + page_offset) % PAGE_SIZE);
 	
-	filesz = (page_offset < ph->p_filesz) ? ph->p_filesz - page_offset : 0;
+	filesz = (page_offset < area->seg_size) ? area->seg_size - page_offset : 0;
 	/*
 	 * only load the demanded page inside memory,
 	 * calculate the size of the page to load inside
@@ -303,49 +303,6 @@ static int load_page(struct addrspace *as, Elf_Phdr *ph, vaddr_t address, paddr_
 			MIN(filesz, memsize));
 	if (retval)
 		return retval;
-
-	return 0;
-}
-
-int load_demand_page(struct addrspace *as, vaddr_t fault_address, paddr_t paddr)
-{
-	Elf_Ehdr eh;
-	Elf_Phdr ph;
-	int retval;
-
-	retval = load_elf_header(as->source_file, &eh);
-	if (retval)
-		return retval;
-
-	for_each_segment(retval, as->source_file, &eh, &ph) {
-		if (retval)
-			return retval;
-
-		switch (ph.p_type) {
-		    case PT_NULL: /* skip */ continue;
-		    case PT_PHDR: /* skip */ continue;
-		    case PT_MIPS_REGINFO: /* skip */ continue;
-		    case PT_LOAD: break;
-		    default:
-			kprintf("loadelf: unknown segment type %d\n", ph.p_type);
-			return ENOEXEC;
-		}
-
-		/* check if the fault_address is indside the boundaries of the segment */
-		if (fault_address < ph.p_vaddr || fault_address >= ph.p_vaddr + ph.p_memsz)
-			continue;
-
-		/*
-		 * we found the segment that caused the fault,
-		 * we load the missing page into memory
-		 * and return to the caller
-		 */
-		retval = load_page(as, &ph, fault_address, paddr);
-		if (retval)
-			return retval;
-
-		break;
-	}
 
 	return 0;
 }
@@ -402,7 +359,10 @@ load_elf(struct vnode *v, vaddr_t *entrypoint)
 		}
 
 		result = as_define_region(as,
-					  ph.p_vaddr, ph.p_memsz,
+					  ph.p_vaddr,
+					  ph.p_memsz,
+					  ph.p_filesz,
+					  ph.p_offset,
 					  ph.p_flags & PF_R,
 					  ph.p_flags & PF_W,
 					  ph.p_flags & PF_X);

@@ -38,7 +38,7 @@ static int page_not_present_fault(
 	}
 	/* load page from memory if file mapped */
 	else if (pte_none(*pte) && asa_file_mapped(area)) {
-		retval = load_demand_page(as, fault_address, page_to_paddr(page));
+		retval = load_demand_page(as, area, fault_address, page_to_paddr(page));
 		if (retval)
 			goto cleanup_page;
 

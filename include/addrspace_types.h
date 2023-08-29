@@ -93,7 +93,8 @@ struct addrspace_area {
          */
         vaddr_t area_start, area_end;
 
-        // off_t seg_offset;               /* Offset of the segment within the source file */
+        size_t seg_size;                /* Size of the segment within the source file */
+        off_t seg_offset;               /* Offset of the segment within the source file */
 };
 
 
