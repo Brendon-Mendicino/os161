@@ -407,7 +407,7 @@ static void page_print_info(void)
 	}
 
 	kprintf("allocated pages:\t%8d\n", alloc_pages);
-	kprintf("free pages:\t\t%8d\n", free_pages);
+	kprintf("free pages:\t\t%8d\n", main_zone.total_pages - alloc_pages);
 
 	if (alloc_pages != main_zone.alloc_pages)
 		kprintf("[Warning] Calculated alloc pages are differnt from the ones stored in main_zone!\n");
