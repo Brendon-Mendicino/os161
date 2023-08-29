@@ -505,7 +505,6 @@ int pt_copy(struct page_table *new, struct page_table *old)
             KASSERT(pte_present(old_pte[j]));
 
             page = pte_page(old_pte[j]);
-            page = READ_ONCE(page);
             user_page_get(page);
             pte_set_cow(&old_pte[j]);
 
@@ -516,7 +515,7 @@ int pt_copy(struct page_table *new, struct page_table *old)
         }
     }
 
-    // KASSERT(new->total_pages == old->total_pages);
+    KASSERT(new->total_pages == old->total_pages);
     
     return 0;
 }
