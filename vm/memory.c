@@ -88,18 +88,25 @@ static int readonly_fault(
 
 	page = pte_page(*pte);
 
+	/*
+	 * Clear the entry from the pte before checking
+	 * if this is a COW mapped page, this is because
+	 * in the process if the refcount is decreased 
+	 * the page will not be owned anymore by this process
+	 * and the pte will reference an invalid page.
+	 */
+	pte_clear(pte);
+
 	if (is_cow_mapping(area->area_flags)) {
 		page = user_page_copy(page);
 	}
 
 	if (!page) {
-		pte_clear(pte);
 		pt_inc_page_count(&as->pt, -1);
 		vm_tlb_flush_one(fault_address);
 		return ENOMEM;
 	}
 
-	pte_clear(pte);
 	pte_set_page(pte, page_to_kvaddr(page), PAGE_PRESENT | PAGE_RW | PAGE_ACCESSED | PAGE_DIRTY);
 
 	retval = vm_tlb_set_page(fault_address & PAGE_FRAME, page_to_paddr(page), true);

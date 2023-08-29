@@ -50,7 +50,7 @@ typedef enum fault_value_t {
     FAULT_NOMEM,
 } fault_value_t ;
 
-#define SWAP_PAGE_THRESHOLD(max, curr) (curr > ((90 * (max)) / 100))
+#define SWAP_PAGE_THRESHOLD(max, curr) (curr > ((80 * (max)) / 100))
 
 /*
  * In OS161 the RAM size is very limited, so we keep the size

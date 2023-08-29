@@ -20,6 +20,12 @@
 typedef enum page_flags_t {
         PGF_INIT,       /* The page has been just initialized */
         PGF_BUDDY,      /* The page is inside the buddy allocator */
+        /*
+         * The page is just been allocated,                                     
+         * in this state is not yet known if it will be
+         *  USER or KERN page 
+         */
+        PGF_ALLOC,      
         PGF_KERN,
         PGF_USER,
 } page_flags_t;

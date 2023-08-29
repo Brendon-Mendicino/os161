@@ -256,6 +256,8 @@ static struct page *get_free_pages(struct zone *zone, unsigned order)
 	struct page *page;
 	unsigned current_order;
 
+	KASSERT(spinlock_do_i_hold(&mem_lock));
+
 	for (current_order = order; current_order <= MAX_ORDER; current_order += 1) {
 		area = &zone->free_area[current_order];
 
@@ -270,6 +272,7 @@ static struct page *get_free_pages(struct zone *zone, unsigned order)
 		zone->alloc_pages += 1 << order;
 
 		page_set_order(page, order);
+		page->flags = PGF_ALLOC;
 		return page;
 	}
 
@@ -287,6 +290,8 @@ static struct page *get_free_pages(struct zone *zone, unsigned order)
 static void free_alloc_pages(struct zone *zone, struct page *page, unsigned order)	
 {
 	struct page *buddy;
+
+	KASSERT(spinlock_do_i_hold(&mem_lock));
 
 	zone->alloc_pages -= 1 << order;
 
@@ -564,10 +569,11 @@ struct page *alloc_user_zeroed_page(void)
 	if (!page)
 		return NULL;
 
-	KASSERT(page->buddy_order == 0);
-
 	user_page_init(page);
 	clear_page(page);
+
+	KASSERT(page->flags == PGF_USER);
+	KASSERT(page->buddy_order == 0);
 
 	return page;
 }

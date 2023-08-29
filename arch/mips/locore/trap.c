@@ -72,7 +72,7 @@ static const char *const trapcodenames[NTRAPCODES] = {
  */
 static
 void
-kill_curthread(vaddr_t epc, unsigned code, vaddr_t vaddr)
+kill_curthread(vaddr_t epc, unsigned code, vaddr_t vaddr, int cause)
 {
 	int sig = 0;
 
@@ -113,8 +113,9 @@ kill_curthread(vaddr_t epc, unsigned code, vaddr_t vaddr)
 	 * You will probably want to change this.
 	 */
 
-	kprintf("Fatal user mode trap %u sig %d (%s, epc 0x%x, vaddr 0x%x)\n",
-		code, sig, trapcodenames[code], epc, vaddr);
+	kprintf("Fatal user mode trap %u sig %d (%s, epc 0x%x, vaddr 0x%x): %s\n",
+		code, sig, trapcodenames[code], epc, vaddr, strerror(cause));
+	vm_kpages_stats();
 #if OPT_PAGING
 	// TODO: use core dumpred for exit
 	sys__exit(_MKWAIT_SIG(sig));
@@ -231,6 +232,8 @@ mips_trap(struct trapframe *tf)
 		goto done;
 	}
 
+	int fault_retval = 0;
+
 	/*
 	 * Ok, it wasn't any of the really easy cases.
 	 * Call vm_fault on the TLB exceptions.
@@ -238,17 +241,17 @@ mips_trap(struct trapframe *tf)
 	 */
 	switch (code) {
 	case EX_MOD:
-		if (vm_fault(VM_FAULT_READONLY, tf->tf_vaddr)==0) {
+		if ((fault_retval = vm_fault(VM_FAULT_READONLY, tf->tf_vaddr)) == 0) {
 			goto done;
 		}
 		break;
 	case EX_TLBL:
-		if (vm_fault(VM_FAULT_READ, tf->tf_vaddr)==0) {
+		if ((fault_retval = vm_fault(VM_FAULT_READ, tf->tf_vaddr)) == 0) {
 			goto done;
 		}
 		break;
 	case EX_TLBS:
-		if (vm_fault(VM_FAULT_WRITE, tf->tf_vaddr)==0) {
+		if ((fault_retval = vm_fault(VM_FAULT_WRITE, tf->tf_vaddr)) == 0) {
 			goto done;
 		}
 		break;
@@ -278,7 +281,7 @@ mips_trap(struct trapframe *tf)
 		 * Fatal fault in user mode.
 		 * Kill the current user process.
 		 */
-		kill_curthread(tf->tf_epc, code, tf->tf_vaddr);
+		kill_curthread(tf->tf_epc, code, tf->tf_vaddr, fault_retval);
 		goto done;
 	}
 
