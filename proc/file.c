@@ -10,6 +10,17 @@
 #include <kern/fcntl.h>
 #include <kern/errno.h>
 
+static bool check_fd(int fd)
+{
+    if (fd < 0)
+        return false;
+
+    if (fd >= OPEN_MAX)
+        return false;
+
+    return true;
+}
+
 /**
  * @brief return a newly created struct file
  * the vnode and the fd must be set after the
@@ -279,12 +290,15 @@ int file_table_remove(struct file_table *ftable, int fd)
 
     KASSERT(ftable != NULL);
 
+    if (!check_fd(fd))
+        return EBADF;
+
     lock_acquire(ftable->table_lock);
 
     file = ftable->fd_array[fd];
     if (!file) {
         lock_release(ftable->table_lock);
-        return ENOENT;
+        return EBADF;
     }
 
     ftable->fd_array[fd] = NULL;
