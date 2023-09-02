@@ -214,16 +214,12 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 
 	retval = pt_copy(&new->pt, &old->pt);
 	if (retval)
-		goto bad_pt_copy_cleanup;
+		goto bad_as_copy_area_cleanup;
 
 	vm_tlb_flush();
 	
 	*ret = new;
 	return 0;
-
-bad_pt_copy_cleanup:
-	// // TODO: handle cow copy
-	// kprintf("Remember to handle COW copy of the old page!\n");
 
 bad_as_copy_area_cleanup:
 	as_destroy(new);
