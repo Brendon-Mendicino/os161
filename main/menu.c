@@ -44,6 +44,7 @@
 #include <sfs.h>
 #include <syscall.h>
 #include <vm.h>
+#include <swap.h>
 #include <test.h>
 #include <current.h>
 #include <fault_stat.h>
@@ -408,6 +409,55 @@ cmd_memstat(int nargs, char **args)
 	return 0;
 }
 
+#if OPT_PAGING
+/**
+ * @brief Info about the swap memory.
+ * 
+ * @param nargs 
+ * @param args 
+ * @return int 
+ */
+static int
+cmd_swapstats(int nargs, char **args)
+{
+	(void)nargs;
+	(void)args;
+
+	swap_print_info();
+
+	return 0;
+}
+
+/**
+ * @brief Dumps the whole swap memory.
+ * 
+ * @param nargs 
+ * @param args 
+ * @return int 
+ */
+static int
+cmd_swapdump(int nargs, char **args)
+{
+	size_t start, end;
+
+	if (nargs == 1) {
+		swap_print_all();
+	}
+	else if (nargs == 3) {
+		start = atoi(args[1]);
+		end = atoi(args[2]);
+
+		swap_print_range(start, end);
+	}
+	else {
+		kprintf("Usage: swapdump [start end]\n");
+	}
+
+	return 0;
+}
+#endif // OPT_PAGING
+
+
 /*
  * Command for mounting a filesystem.
  */
@@ -654,6 +704,8 @@ static const char *mainmenu[] = {
 	"[kh] Kernel heap stats              ",
 	"[khgen] Next kernel heap generation ",
 	"[khdump] Dump kernel heap           ",
+	"[swap] Swap memory stats            ",
+	"[swapdump] Dump swap memory         ",
 	"[q] Quit and shut down              ",
 	NULL
 };
@@ -700,12 +752,16 @@ static struct {
 	{ "q",		cmd_quit },
 	{ "exit",	cmd_quit },
 	{ "halt",	cmd_quit },
-	{ "memstat", cmd_memstat },
 
 	/* stats */
 	{ "kh",         cmd_kheapstats },
 	{ "khgen",      cmd_kheapgeneration },
 	{ "khdump",     cmd_kheapdump },
+	{ "memstat", cmd_memstat },
+#if OPT_PAGING
+	{ "swap",       cmd_swapstats },
+	{ "swapdump",   cmd_swapdump },
+#endif // OPT_PAGING
 
 	/* base system tests */
 	{ "at",		arraytest },

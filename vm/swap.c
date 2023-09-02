@@ -185,6 +185,59 @@ static void write_at_end_swap_file(struct vnode *swap)
         panic("Swap bootstrap failed: %s\n", strerror(retval));
 }
 
+void swap_print_info(void)
+{
+    struct swap_memory *swap = &swap_mem;
+
+    spinlock_acquire(&swap->swap_lock);
+
+    kprintf("Swap info:\n");
+    kprintf("swap size:     %8d\n", swap->swap_size);
+    kprintf("swap pages:    %8d\n", swap->swap_pages);
+    kprintf("\n");
+
+    spinlock_release(&swap->swap_lock);
+}
+
+void swap_print_all(void)
+{
+    struct swap_memory *swap = &swap_mem;
+
+    spinlock_acquire(&swap->swap_lock);
+
+    kprintf("Swap entry info:\n");
+    kprintf("swap size:     %8d\n", swap->swap_size);
+    kprintf("swap pages:    %8d\n", swap->swap_pages);
+    for (size_t i = 0; i < SWAP_ENTRIES; i++) {
+        kprintf("swap entry (%6d) refcount: %8d\n", i, swap->swap_page_list[i].refcount);
+    }
+    kprintf("\n");
+
+    spinlock_release(&swap->swap_lock);
+}
+
+void swap_print_range(size_t start, size_t end)
+{
+    struct swap_memory *swap = &swap_mem;
+
+    KASSERT(start < end);
+
+    if (end > SWAP_ENTRIES)
+        end = SWAP_ENTRIES;
+
+    spinlock_acquire(&swap->swap_lock);
+
+    kprintf("Swap entry info:\n");
+    kprintf("swap size:     %8d\n", swap->swap_size);
+    kprintf("swap pages:    %8d\n", swap->swap_pages);
+    for (size_t i = start; i < end; i++) {
+        kprintf("swap entry (%6d) refcount: %8d\n", i, swap->swap_page_list[i].refcount);
+    }
+    kprintf("\n");
+
+    spinlock_release(&swap->swap_lock);
+}
+
 /**
  * @brief Bootstraps the swap file.
  * 
@@ -218,6 +271,8 @@ void swap_bootsrap(void)
             .refcount = 0,
         };
     }
+
+    swap_print_info();
 
     return;
 

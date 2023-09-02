@@ -39,4 +39,10 @@ extern int swap_inc_page(swap_entry_t entry);
 
 extern int swap_dec_page(swap_entry_t entry);
 
+extern void swap_print_info(void);
+
+extern void swap_print_all(void);
+
+extern void swap_print_range(size_t start, size_t end);
+
 #endif // _SWAP_H_
