@@ -183,6 +183,7 @@ int sys_remove(const_userptr_t path)
         return retval;
 
     retval = vfs_remove(kpath);
+    struct file
     if (retval)
         return retval;
 
