@@ -89,7 +89,6 @@ static size_t pte_free_table(pte_t *pte)
     size_t freed_pages = 0;
     size_t i;
 
-    // TODO: add check for swap page
     /* free pages */
     for (i = 0; i < PTRS_PER_PTE; i++) {
         if (pte_none(pte[i]))
@@ -97,14 +96,13 @@ static size_t pte_free_table(pte_t *pte)
 
         if (pte_swap(pte[i])) {
             swap_dec_page(pte_swap_entry(pte[i]));
+            pte_clear(&pte[i]);
             continue;
         }
 
-        if (!pte_present(pte[i]))
-            continue;
+        KASSERT(pte_present(pte[i]));
 
         page = pte_page(pte[i]);
-        page = READ_ONCE(page);
         user_page_put(page);
 
         pte_clear(&pte[i]);
@@ -430,12 +428,6 @@ int pt_walk_page_table(struct page_table *pt, vaddr_t start, vaddr_t end, walk_o
     KASSERT(pt->pmd != NULL);
     KASSERT(start <= end);
 
-// repeat_walk:
-//     n_walks += 1;
-//     // TODO: refactor retrun value
-//     if (n_walks > 2)
-//         return 1;
-
     do {
         next = pmd_addr_end(start, end);
 
@@ -450,11 +442,6 @@ int pt_walk_page_table(struct page_table *pt, vaddr_t start, vaddr_t end, walk_o
             break;
 
     } while (start = next, start < end);
-
-    // if (action == WALK_REPEAT) {
-    //     start = initial_start;
-    //     goto repeat_walk;
-    // }
 
     return 0;
 }
