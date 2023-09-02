@@ -38,7 +38,11 @@ static int __must_check handle_swap_inc_page(struct swap_memory *swap, swap_entr
 static int __must_check handle_swap_dec_page(struct swap_memory *swap, swap_entry_t entry)
 {
     bool valid = true;
-    size_t index = entry.val / PAGE_SIZE;
+    size_t index;
+
+    KASSERT(PAGE_ALIGNED(entry.val));
+
+    index = entry.val / PAGE_SIZE;
 
     spinlock_acquire(&swap->swap_lock);
     if (swap->swap_page_list[index].refcount == 0) {
