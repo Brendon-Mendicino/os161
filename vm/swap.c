@@ -9,6 +9,10 @@
 #include <kern/fcntl.h>
 
 
+/*
+ * The swap memory of the system.
+ * 
+ */
 struct swap_memory swap_mem;
 
 
@@ -50,6 +54,13 @@ static int __must_check handle_swap_dec_page(struct swap_memory *swap, swap_entr
     return valid ? 0 : EINVAL;
 }
 
+/**
+ * @brief Check if a page can be move to the
+ * swap memory.
+ * 
+ * @param page page to check
+ * @return true if the page is ok
+ */
 static bool swap_check_page(struct page *page)
 {
     if (page->flags != PGF_USER)
@@ -84,6 +95,14 @@ static int handle_swap_add_page(struct swap_memory *swap, struct page *page, swa
     struct iovec iovec;
     int retval;
 
+    /*
+     * Lock for the file access goes this early
+     * beacause there is a race condition after the
+     * spinlock ends, another thread might come
+     * before this one takes the lock, thus
+     * reading garbage from the memory.
+     */
+    lock_acquire(swap->swap_file_lock);
     spinlock_acquire(&swap->swap_lock);
 
     first_free = swap_get_first_free(swap);
@@ -92,13 +111,11 @@ static int handle_swap_add_page(struct swap_memory *swap, struct page *page, swa
     swap->swap_pages += 1;
 
     KASSERT(swap->swap_page_list[first_free].refcount == 1);
-
     spinlock_release(&swap->swap_lock);
 
     file_offset = first_free * PAGE_SIZE;
     uio_kinit(&iovec, &uio, (void *)page_to_kvaddr(page), PAGE_SIZE, file_offset, UIO_WRITE);
 
-    lock_acquire(swap->swap_file_lock);
     retval = VOP_WRITE(swap->swap_file, &uio);
     lock_release(swap->swap_file_lock);
     if (retval)
@@ -145,6 +162,12 @@ static int handle_swap_get_page(struct swap_memory *swap, struct page *page, swa
     return 0;
 }
 
+/**
+ * @brief Check if the file can hold the maximum size
+ * of the swap memory.
+ * 
+ * @param swap swap file
+ */
 static void write_at_end_swap_file(struct vnode *swap)
 {
     struct uio uio;
@@ -161,7 +184,8 @@ static void write_at_end_swap_file(struct vnode *swap)
 /**
  * @brief Bootstraps the swap file.
  * 
- * @return error if any
+ * Panic if is't not possible to create the swap file.
+ * 
  */
 void swap_bootsrap(void)
 {
@@ -224,6 +248,19 @@ int swap_add_page(struct page *page, swap_entry_t *entry)
     return 0;
 }
 
+/**
+ * @brief Get a page from the swap memory and
+ * copy it's content to the newly user allocated
+ * page. By getting a page the refcount is decremented
+ * and when it reaches 0 the entry is free.
+ * 
+ * @param page user page to copy swap page to
+ * @param swap_entry entry of the page to copy
+ * @return error if any:
+ * - the page is not a user page
+ * - the page is shared
+ * - the entry does not exist
+ */
 int swap_get_page(struct page *page, swap_entry_t swap_entry)
 {
     if (!swap_check_page(page))
@@ -232,11 +269,25 @@ int swap_get_page(struct page *page, swap_entry_t swap_entry)
     return handle_swap_get_page(&swap_mem, page, swap_entry);
 }
 
+/**
+ * @brief Increment the the shared counter of a
+ * page.
+ * 
+ * @param entry entry of the page to increment the refcount
+ * @return error if the entry doesn't exist
+ */
 int swap_inc_page(swap_entry_t entry)
 {
     return handle_swap_inc_page(&swap_mem, entry);
 }
 
+/**
+ * @brief Decrement the shared counter of a page,
+ * if the count reaches zero the entry is freed.
+ * 
+ * @param entry entry to the decrement the counter from
+ * @return error if the entry doesn't exist
+ */
 int swap_dec_page(swap_entry_t entry)
 {
     return handle_swap_dec_page(&swap_mem, entry);

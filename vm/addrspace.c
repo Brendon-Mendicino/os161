@@ -132,6 +132,14 @@ as_copy_area(struct addrspace *new, struct addrspace *old)
 /* temp variable */
 #define AS_STACKPAGES 16
 
+/**
+ * @brief Create a new empty address space. You need to make
+ * sure this gets called in all the right places. You
+ * may find you want to change the argument list. May
+ * return NULL on out-of-memory error.
+ * 
+ * @return struct addrspace* 
+ */
 struct addrspace *
 as_create(void)
 {
@@ -172,6 +180,15 @@ out:
 	return NULL;
 }
 
+/**
+ * @brief Create a new address space that is an exact copy of
+ * an old one. The page table of the address space is
+ * copyed using a COW method, this saves time and space.
+ * 
+ * @param old old address space
+ * @param ret new address space
+ * @return int error if any
+ */
 int
 as_copy(struct addrspace *old, struct addrspace **ret)
 {
@@ -213,6 +230,11 @@ bad_as_copy_area_cleanup:
 	return retval;
 }
 
+/**
+ * @brief Dispose of an address space.
+ * 
+ * @param as address space to destroy
+ */
 void
 as_destroy(struct addrspace *as)
 {
@@ -257,15 +279,30 @@ as_deactivate(void)
 	 */
 }
 
-/*
- * Set up a segment at virtual address VADDR of size MEMSIZE. The
+/**
+ * @brief Set up a segment at virtual address VADDR of size MEMSIZE. The
  * segment in memory extends from VADDR up to (but not including)
  * VADDR+MEMSIZE.
- *
+ * 
+ * `[vaddr, vaddr + memsize)`
+ * 
+ * This function also takes as parameter the `size` and the
+ * `offset` of the region loaded from the ELF file.
+ * 
  * The READABLE, WRITEABLE, and EXECUTABLE flags are set if read,
  * write, or execute permission should be set on the segment. At the
  * moment, these are ignored. When you write the VM system, you may
  * want to implement them.
+ * 
+ * @param as address space to act on
+ * @param vaddr starting address of the virtual area
+ * @param memsize size of virtual area
+ * @param seg_size size of the ELF region
+ * @param seg_offset offset of the ELF region
+ * @param readable area is readable
+ * @param writeable area is writable
+ * @param executable area is executable
+ * @return int error if any
  */
 int
 as_define_region(struct addrspace *as,
@@ -301,6 +338,16 @@ as_define_region(struct addrspace *as,
 	return 0;
 }
 
+/**
+ * @brief This is called before actually loading from an
+ * executable into the address space.
+ * 
+ * (This should be called if the system is does not have
+ * demand paging).
+ * 
+ * @param as 
+ * @return int 
+ */
 int
 as_prepare_load(struct addrspace *as)
 {
@@ -323,6 +370,13 @@ as_prepare_load(struct addrspace *as)
 	return 0;
 }
 
+/**
+ * @brief This is called when loading from an executable
+ * is complete.
+ * 
+ * @param as address space
+ * @return int error if any
+ */
 int
 as_complete_load(struct addrspace *as)
 {
@@ -334,10 +388,18 @@ as_complete_load(struct addrspace *as)
 	return 0;
 }
 
-int
+/**
+ * @brief Set up the stack region in the address space.
+ * (Normally called *after* as_complete_load().) Hands
+ * back the initial stack pointer for the new process.
+ * 
+ * @param as address space
+ * @param stackptr Return value for the stack pointer.
+ * @return int error if any
+ */
+int               
 as_define_stack(struct addrspace *as, vaddr_t *stackptr)
 {
-#if OPT_ARGS
 	struct addrspace_area *area;
 	int retval;
 
@@ -350,7 +412,11 @@ as_define_stack(struct addrspace *as, vaddr_t *stackptr)
 	KASSERT(as->end_stack == 0);
 
 
+#if OPT_ARGS
 	as->end_stack = as->start_arg & PAGE_FRAME;
+#else // OPT_ARGS
+	as->end_stack = USERSTACK;
+#endif // OPT_ARGS
 	as->start_stack = as->end_stack - AS_STACKPAGES * PAGE_SIZE;
 
 	retval = pt_alloc_page_range(&as->pt, as->start_stack, as->end_stack, (struct pt_page_flags){
@@ -371,17 +437,16 @@ as_define_stack(struct addrspace *as, vaddr_t *stackptr)
 	*stackptr = as->end_stack;
 
 	return 0;
-#else // OPT_ARGS
-	(void)as;
-	KASSERT(as->asp_stackpbase != 0);
-
-	/* Initial user-level stack pointer */
-	*stackptr = USERSTACK;
-
-	return 0;
-#endif // OPT_ARGS
 }
 
+/**
+ * @brief Find an area in the address space associated
+ * with the address `addr`.
+ * 
+ * @param as address space
+ * @param addr addres of the area
+ * @return struct addrspace_area* if any, or `NULL` if no area was found
+ */
 struct addrspace_area *as_find_area(struct addrspace *as, vaddr_t addr)
 {
 	struct addrspace_area *area;
@@ -396,7 +461,7 @@ struct addrspace_area *as_find_area(struct addrspace *as, vaddr_t addr)
 
 #if OPT_ARGS
 /**
- * @brief sets up the user space that contains the args of the program.
+ * @brief Sets up the user space that contains the args of the program.
  * The args space is confined between the `USER_TOP` and the begenning of the
  * user stack.
  * 

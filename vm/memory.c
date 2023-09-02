@@ -14,6 +14,20 @@ static inline bool is_cow_mapping(area_flags_t flags)
 	return (flags & AS_AREA_MAY_WRITE) == AS_AREA_MAY_WRITE;
 }
 
+/**
+ * @brief Allocates a new user zeroed page and
+ * insert the it in the pte entry, there are
+ * two scenarios: 
+ * - the page is in the swap memory
+ * - the page should be loaded from the source file
+ * 
+ * @param as addrspace of the current proc
+ * @param area area of the address fault
+ * @param pte pte of the address fault
+ * @param fault_address virtual address of the user
+ * @param fault_type 
+ * @return int error if any
+ */
 static int page_not_present_fault(
 	struct addrspace *as,
 	struct addrspace_area *area,
@@ -47,6 +61,7 @@ static int page_not_present_fault(
 		panic("Don't know what kind of pte faulted!\n");
 	}
 
+	/* Set the page as writable only if the area is writable. */
 	bool page_write = asa_write(area);
 	bool page_dirty = page_write && (fault_type & VM_FAULT_READ);
 
@@ -69,6 +84,24 @@ cleanup_page:
 	return retval;
 }
 
+/**
+ * @brief Handle a readonly fault kind on a pte,
+ * there are two scenarios:
+ * 
+ * - the page was COW, we allocate a new page,
+ * decrement the old refcount (if not 1) and copy the old content
+ * to the new page;
+ * 
+ * - the address space area was not writable, so
+ * an error is returned;
+ * 
+ * @param as address space of the current proc
+ * @param area area of the `fault_address`
+ * @param pte pte of the `fault_address`
+ * @param fault_address address that the user faulted on
+ * @param fault_type 
+ * @return int error if any
+ */
 static int readonly_fault(
 	struct addrspace *as,
 	struct addrspace_area *area,
@@ -116,6 +149,14 @@ static int readonly_fault(
 	return 0;
 }
 
+/**
+ * @brief Handles a page fault.
+ * 
+ * @param as 
+ * @param fault_address 
+ * @param fault_type 
+ * @return int 
+ */
 static int vm_handle_fault(struct addrspace *as, vaddr_t fault_address, int fault_type)
 {
 	struct addrspace_area *area;
@@ -141,6 +182,7 @@ static int vm_handle_fault(struct addrspace *as, vaddr_t fault_address, int faul
 		if (!pte_write(pte_entry)) {
 			return readonly_fault(as, area, pte, fault_address, fault_type);
 		}
+		/* The address was in a readonly area */
 		return EFAULT;
 	}
 
@@ -149,6 +191,13 @@ static int vm_handle_fault(struct addrspace *as, vaddr_t fault_address, int faul
     return 0;
 }
 
+/**
+ * @brief Entry for the page fault handling.
+ * 
+ * @param faulttype 
+ * @param faultaddress 
+ * @return int 
+ */
 int vm_fault(int faulttype, vaddr_t faultaddress)
 {
 	struct addrspace *as;

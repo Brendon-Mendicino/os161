@@ -128,8 +128,10 @@ void              as_destroy(struct addrspace *);
 int               as_define_region(struct addrspace *as,
                                    vaddr_t vaddr,
                                    size_t sz,
+#if OPT_PAGING
                                    size_t seg_size,
                                    off_t seg_offset,
+#endif // OPT_PAGING
                                    int readable,
                                    int writeable,
                                    int executable);

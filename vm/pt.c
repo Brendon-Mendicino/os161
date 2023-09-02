@@ -366,6 +366,18 @@ int pt_alloc_page(struct page_table *pt, vaddr_t addr, struct pt_page_flags flag
     return 0;
 }
 
+/**
+ * @brief Allocates a range of pages indide a page table,
+ * the range considered is [start, end), `end` is considered
+ * strictly less. If the table has a not `none` pte, it
+ * will be skipped.
+ * 
+ * @param pt page table
+ * @param start starting address of the range (included)
+ * @param end ending address of the range (not included)
+ * @param flags flags of the page
+ * @return int error if any
+ */
 int pt_alloc_page_range(struct page_table *pt, vaddr_t start, vaddr_t end, struct pt_page_flags flags)
 {
     int retval;
@@ -471,6 +483,17 @@ paddr_t pt_get_paddr(struct page_table *pt, vaddr_t addr)
     return pte_paddr(*pte);
 }
 
+/**
+ * @brief Copy the `old` page table to the
+ * `new` page table. The copy is done incrementing the
+ * refcount of the page pointed by the `pte`s, or
+ * incrementing the refcount of entry in the swap
+ * memory.
+ * 
+ * @param new new page table
+ * @param old old page table
+ * @return int error if any
+ */
 int pt_copy(struct page_table *new, struct page_table *old)
 {
     pte_t *new_pte, *old_pte;

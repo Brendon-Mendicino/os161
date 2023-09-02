@@ -88,6 +88,12 @@ static walk_action_t choose_victim_page(struct page_table *pt, pte_t *pte, vaddr
 	return WALK_BREAK;
 }
 
+/**
+ * @brief Gets the current address space and walk the page table
+ * trying to move a page from a `zone` to the swap memory.
+ * 
+ * @return int
+ */
 static int vm_try_swapin_page(void)
 {
 	struct addrspace *as;

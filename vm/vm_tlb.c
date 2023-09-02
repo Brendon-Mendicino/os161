@@ -13,6 +13,10 @@
 #include <machine/tlb.h>
 
 
+/*
+ * Locks the TLB access.
+ * 
+ */
 static struct spinlock tlb_lock = SPINLOCK_INITIALIZER;
 
 /**

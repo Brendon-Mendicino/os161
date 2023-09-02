@@ -149,9 +149,22 @@ load_segment(struct addrspace *as, struct vnode *v,
 #if OPT_PAGING
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 
+/**
+ * @brief Load a page from the segment of an ELF
+ * file to a memory address.
+ * 
+ * @param v source file
+ * @param offset offset within the file
+ * @param vaddr address to load the data at
+ * @param memsize size of the virtual data
+ * @param filesize size of the data
+ * @return int error if any
+ */
 static int load_ksegment(struct vnode *v,
-	     off_t offset, vaddr_t vaddr,
-	     size_t memsize, size_t filesize)
+	    off_t offset,
+		vaddr_t vaddr,
+	    size_t memsize,
+		size_t filesize)
 {
 	struct iovec iov;
 	struct uio u;
@@ -264,6 +277,16 @@ static int load_elf_header(struct vnode *v, Elf_Ehdr *eh)
 	return 0;
 }
 
+/**
+ * @brief Load a page from the source file of an adress space
+ * to the requested `fault_address` in a memory `area`.
+ * 
+ * @param as address space to take the source file from
+ * @param area memory area of the `fault_address`
+ * @param fault_address address to load the page at
+ * @param paddr physical address to laod the page at
+ * @return int error is any
+ */
 int load_demand_page(struct addrspace *as, struct addrspace_area *area, vaddr_t fault_address, paddr_t paddr)
 {
 	int retval;
@@ -276,6 +299,7 @@ int load_demand_page(struct addrspace *as, struct addrspace_area *area, vaddr_t 
 	 * loaded inside the segment
 	 */
 	KASSERT(fault_address >= area->area_start);
+	KASSERT(fault_address <  area->area_end);
 
 	/* align the offset with the begenning of a page */
 	if ((fault_address & PAGE_FRAME) > area->area_start) {
@@ -292,6 +316,7 @@ int load_demand_page(struct addrspace *as, struct addrspace_area *area, vaddr_t 
 	memsize = PAGE_SIZE - ((area->area_start + page_offset) % PAGE_SIZE);
 	
 	filesz = (page_offset < area->seg_size) ? area->seg_size - page_offset : 0;
+
 	/*
 	 * only load the demanded page inside memory,
 	 * calculate the size of the page to load inside
@@ -372,7 +397,7 @@ load_elf(struct vnode *v, vaddr_t *entrypoint)
 	}
 
 #if OPT_PAGING
-	// TODO: see later
+	/* When demand paging is enabled no page is loaded */
 #else // OPT_PAGING
 	result = as_prepare_load(as);
 	if (result) {
@@ -399,18 +424,7 @@ load_elf(struct vnode *v, vaddr_t *entrypoint)
 		}
 
 #if OPT_PAGING
-		/**
-		 * load at most one page, the
-		 * demand paging will take care of
-		 * loading the other pages
-		 */
-		// result = load_segment(as, 
-		// 		v, 
-		// 		ph.p_offset, 
-		// 		ph.p_vaddr,
-		// 		PAGE_SIZE, 
-		// 		MIN(ph.p_filesz, PAGE_SIZE),
-		// 		ph.p_flags & PF_X);
+		/* When demand paging is enabled no page is loaded */
 #else // OPT_PAGING
 		result = load_segment(as, v, ph.p_offset, ph.p_vaddr,
 				      ph.p_memsz, ph.p_filesz,
