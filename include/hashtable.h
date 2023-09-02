@@ -42,7 +42,7 @@ static inline void __hash_init(struct hlist_head *ht, unsigned int sz)
 
 /**
  * hash_init - initialize a hash table
- * @hashtable: hashtable to be initialized
+ * hashtable: hashtable to be initialized
  *
  * Calculates the size of the hashtable from the given parameter, otherwise
  * same as hash_init_size.
@@ -54,18 +54,18 @@ static inline void __hash_init(struct hlist_head *ht, unsigned int sz)
 
 /**
  * hash_add - add an object to a hashtable
- * @hashtable: hashtable to add to
- * @node: the &struct hlist_node of the object to be added
- * @key: the key of the object to be added
+ * hashtable: hashtable to add to
+ * node: the &struct hlist_node of the object to be added
+ * key: the key of the object to be added
  */
 #define hash_add(hashtable, node, key)						\
 	hlist_add_head(node, &hashtable[hash_min(key, HASH_BITS(hashtable))])
 
 /**
  * hash_add_rcu - add an object to a rcu enabled hashtable
- * @hashtable: hashtable to add to
- * @node: the &struct hlist_node of the object to be added
- * @key: the key of the object to be added
+ * hashtable: hashtable to add to
+ * node: the &struct hlist_node of the object to be added
+ * key: the key of the object to be added
  */
 /*
 #define hash_add_rcu(hashtable, node, key)					\
@@ -74,7 +74,7 @@ static inline void __hash_init(struct hlist_head *ht, unsigned int sz)
 
 /**
  * hash_hashed - check whether an object is in any hashtable
- * @node: the &struct hlist_node of the object to be checked
+ * node: the &struct hlist_node of the object to be checked
  */
 static inline bool hash_hashed(struct hlist_node *node)
 {
@@ -94,7 +94,7 @@ static inline bool __hash_empty(struct hlist_head *ht, unsigned int sz)
 
 /**
  * hash_empty - check whether a hashtable is empty
- * @hashtable: hashtable to check
+ * hashtable: hashtable to check
  *
  * This has to be a macro since HASH_BITS() will not work on pointers since
  * it calculates the size during preprocessing.
@@ -103,7 +103,7 @@ static inline bool __hash_empty(struct hlist_head *ht, unsigned int sz)
 
 /**
  * hash_del - remove an object from a hashtable
- * @node: &struct hlist_node of the object to remove
+ * node: &struct hlist_node of the object to remove
  */
 static inline void hash_del(struct hlist_node *node)
 {
@@ -112,7 +112,7 @@ static inline void hash_del(struct hlist_node *node)
 
 // /**
 //  * hash_del_rcu - remove an object from a rcu enabled hashtable
-//  * @node: &struct hlist_node of the object to remove
+//  * node: &struct hlist_node of the object to remove
 //  */
 // static inline void hash_del_rcu(struct hlist_node *node)
 // {
@@ -121,10 +121,10 @@ static inline void hash_del(struct hlist_node *node)
 
 /**
  * hash_for_each - iterate over a hashtable
- * @name: hashtable to iterate
- * @bkt: integer to use as bucket loop cursor
- * @obj: the type * to use as a loop cursor for each entry
- * @member: the name of the hlist_node within the struct
+ * name: hashtable to iterate
+ * bkt: integer to use as bucket loop cursor
+ * obj: the type * to use as a loop cursor for each entry
+ * member: the name of the hlist_node within the struct
  */
 #define hash_for_each(name, bkt, obj, member)				\
 	for ((bkt) = 0, obj = NULL; obj == NULL && (bkt) < HASH_SIZE(name);\
@@ -133,10 +133,10 @@ static inline void hash_del(struct hlist_node *node)
 
 /**
  * hash_for_each_rcu - iterate over a rcu enabled hashtable
- * @name: hashtable to iterate
- * @bkt: integer to use as bucket loop cursor
- * @obj: the type * to use as a loop cursor for each entry
- * @member: the name of the hlist_node within the struct
+ * name: hashtable to iterate
+ * bkt: integer to use as bucket loop cursor
+ * obj: the type * to use as a loop cursor for each entry
+ * member: the name of the hlist_node within the struct
  */
 /*
 #define hash_for_each_rcu(name, bkt, obj, member)			\
@@ -148,11 +148,11 @@ static inline void hash_del(struct hlist_node *node)
 /**
  * hash_for_each_safe - iterate over a hashtable safe against removal of
  * hash entry
- * @name: hashtable to iterate
- * @bkt: integer to use as bucket loop cursor
- * @tmp: a &struct hlist_node used for temporary storage
- * @obj: the type * to use as a loop cursor for each entry
- * @member: the name of the hlist_node within the struct
+ * name: hashtable to iterate
+ * bkt: integer to use as bucket loop cursor
+ * tmp: a &struct hlist_node used for temporary storage
+ * obj: the type * to use as a loop cursor for each entry
+ * member: the name of the hlist_node within the struct
  */
 #define hash_for_each_safe(name, bkt, tmp, obj, member)			\
 	for ((bkt) = 0, obj = NULL; obj == NULL && (bkt) < HASH_SIZE(name);\
@@ -162,10 +162,10 @@ static inline void hash_del(struct hlist_node *node)
 /**
  * hash_for_each_possible - iterate over all possible objects hashing to the
  * same bucket
- * @name: hashtable to iterate
- * @obj: the type * to use as a loop cursor for each entry
- * @member: the name of the hlist_node within the struct
- * @key: the key of the objects to iterate over
+ * name: hashtable to iterate
+ * obj: the type * to use as a loop cursor for each entry
+ * member: the name of the hlist_node within the struct
+ * key: the key of the objects to iterate over
  */
 #define hash_for_each_possible(name, obj, member, key)			\
 	hlist_for_each_entry(obj, &name[hash_min(key, HASH_BITS(name))], member)
@@ -173,10 +173,10 @@ static inline void hash_del(struct hlist_node *node)
 /**
  * hash_for_each_possible_rcu - iterate over all possible objects hashing to the
  * same bucket in an rcu enabled hashtable
- * @name: hashtable to iterate
- * @obj: the type * to use as a loop cursor for each entry
- * @member: the name of the hlist_node within the struct
- * @key: the key of the objects to iterate over
+ * name: hashtable to iterate
+ * obj: the type * to use as a loop cursor for each entry
+ * member: the name of the hlist_node within the struct
+ * key: the key of the objects to iterate over
  */
 /*
 #define hash_for_each_possible_rcu(name, obj, member, key, cond...)	\
@@ -187,10 +187,10 @@ static inline void hash_del(struct hlist_node *node)
 /**
  * hash_for_each_possible_rcu_notrace - iterate over all possible objects hashing
  * to the same bucket in an rcu enabled hashtable in a rcu enabled hashtable
- * @name: hashtable to iterate
- * @obj: the type * to use as a loop cursor for each entry
- * @member: the name of the hlist_node within the struct
- * @key: the key of the objects to iterate over
+ * name: hashtable to iterate
+ * obj: the type * to use as a loop cursor for each entry
+ * member: the name of the hlist_node within the struct
+ * key: the key of the objects to iterate over
  *
  * This is the same as hash_for_each_possible_rcu() except that it does
  * not do any RCU debugging or tracing.
@@ -204,11 +204,11 @@ static inline void hash_del(struct hlist_node *node)
 /**
  * hash_for_each_possible_safe - iterate over all possible objects hashing to the
  * same bucket safe against removals
- * @name: hashtable to iterate
- * @obj: the type * to use as a loop cursor for each entry
- * @tmp: a &struct hlist_node used for temporary storage
- * @member: the name of the hlist_node within the struct
- * @key: the key of the objects to iterate over
+ * name: hashtable to iterate
+ * obj: the type * to use as a loop cursor for each entry
+ * tmp: a &struct hlist_node used for temporary storage
+ * member: the name of the hlist_node within the struct
+ * key: the key of the objects to iterate over
  */
 #define hash_for_each_possible_safe(name, obj, tmp, member, key)	\
 	hlist_for_each_entry_safe(obj, tmp,\
