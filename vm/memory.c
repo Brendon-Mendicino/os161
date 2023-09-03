@@ -38,7 +38,7 @@ static int page_not_present_fault(
 	struct page *page;
 	int retval;
 
-	page = alloc_user_zeroed_page();
+	page = alloc_user_page();
 	if (!page)
 		return ENOMEM;
 
@@ -52,6 +52,8 @@ static int page_not_present_fault(
 	}
 	/* load page from memory if file mapped */
 	else if (pte_none(*pte) && asa_file_mapped(area)) {
+		clear_page(page);
+
 		retval = load_demand_page(as, area, fault_address, page_to_paddr(page));
 		if (retval)
 			goto cleanup_page;

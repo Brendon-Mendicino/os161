@@ -562,6 +562,28 @@ void free_pages(struct page *page)
 }
 
 /**
+ * @brief Allocates a page for the user.
+ * 
+ * @return returns a page or NULL if there is no
+ * memory available.
+ */
+struct page *alloc_user_page(void)
+{
+	struct page *page;
+	
+	page = alloc_pages(1);
+	if (!page)
+		return NULL;
+
+	user_page_init(page);
+
+	KASSERT(page->flags == PGF_USER);
+	KASSERT(page->buddy_order == 0);
+
+	return page;
+}
+
+/**
  * @brief Allocates a page for the user and zero-fills it.
  * 
  * @return returns a cleared page or NULL if there is no

@@ -62,7 +62,7 @@ static inline struct page *user_page_copy(struct page *page)
         return page;
     }
 
-    new_page = alloc_user_zeroed_page();
+    new_page = alloc_user_page();
     if (!new_page)
         return NULL;
 

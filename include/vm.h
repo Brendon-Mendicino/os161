@@ -206,6 +206,8 @@ extern struct page *alloc_pages(size_t npages);
 
 extern void free_pages(struct page *page);
 
+extern struct page *alloc_user_page(void);
+
 extern struct page *alloc_user_zeroed_page(void);
 
 #endif /* _VM_H_ */
