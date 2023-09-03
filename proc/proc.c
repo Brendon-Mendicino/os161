@@ -87,10 +87,17 @@ struct proc kproc = {
 DEFINE_HASHTABLE(proc_table, 5);
 
 /*
- * This value is locked by
- * p_lock of kproc.
+ * Current next greater value of PID among the procs.
  */
 static pid_t max_pid = PID_MIN;
+
+/*
+ * Lock for pid manipulation:
+ * - `max_pid`
+ * - `proc_table`
+ * 
+ */
+static struct spinlock pid_lock = SPINLOCK_INITIALIZER;
 
 /*
  * Removes a child from the children
@@ -103,22 +110,89 @@ void del_child_proc(struct proc *child)
 	KASSERT(child != NULL);
 	KASSERT(child->parent != NULL);
 
-	// TODO: check for race conditions
 	spinlock_acquire(&child->parent->p_lock);
 	list_del_init(&child->siblings);
 	spinlock_release(&child->parent->p_lock);
 }
 
 static inline
-void add_new_child_proc(struct proc *new, struct proc *head)
+void add_new_child_proc(struct proc *new_child, struct proc *parent)
 {
-	spinlock_acquire(&head->p_lock);
-	list_add_tail(&new->siblings, &head->children);
-	spinlock_release(&head->p_lock);
+	spinlock_acquire(&parent->p_lock);
+	list_add_tail(&new_child->siblings, &parent->children);
+	spinlock_release(&parent->p_lock);
+}
+
+// /**
+//  * @brief Set the new parent for a proc. The requirements to
+//  * call this funcitons are to already own the p_lock for the
+//  * new parent and for the old parent.
+//  * 
+//  * @param child 
+//  * @param parent 
+//  */
+// static void proc_set_parent(struct proc *child, struct proc *parent)
+// {
+// 	KASSERT(spinlock_do_i_hold(&parent->p_lock));
+// 	KASSERT(spinlock_do_i_hold(&child->parent->p_lock));
+
+// 	spinlock_acquire(&child->p_lock);
+
+// 	/* Parent is owned by child */
+// 	child->parent = parent;
+
+// 	/* List owned by current parent */
+// 	list_del_init(&child->siblings);
+
+// 	/* List owned by new parent */
+// 	list_add_tail(&child->siblings, &parent->children);
+
+// 	spinlock_release(&child->p_lock);
+// }
+
+// static struct proc *proc_get_parent(struct proc *proc)
+// {
+// 	spinlock_acquire(&proc->p_lock);
+// 	return proc->parent;
+// }
+
+// static void proc_release_parent(struct proc *proc)
+// {
+// 	KASSERT(spinlock_do_i_hold(&proc->p_lock));
+// 	spinlock_release(&proc->p_lock);
+// }
+
+// static void proc_wait_one_child(struct proc *proc)
+// {
+
+// }
+
+static void proc_orphanize_childeren(struct proc *proc)
+{
+	// struct proc *child;
+	// struct proc *temp;
+
+	// spinlock_acquire(&kproc.p_lock);
+	// spinlock_acquire(&proc->p_lock);
+
+	// proc_for_each_child(child, temp, proc) {
+	// 	proc_set_parent(child, &kproc);
+	// }
+
+	// spinlock_release(&proc->p_lock);
+	// spinlock_release(&kproc.p_lock);
+
+	// KASSERT(list_empty(&proc->children));
+
+	spinlock_acquire(&proc->p_lock);
+	list_del_init(&proc->children);
+	spinlock_release(&proc->p_lock);
 }
 
 void proc_make_zombie(int exit_code, struct proc *proc)
 {
+	proc_orphanize_childeren(proc);
+
 	lock_acquire(proc->wait_lock);
 	proc->exit_state = PROC_ZOMBIE;
 	proc->exit_code = exit_code;
@@ -139,7 +213,7 @@ proc_get_child(pid_t pid, struct proc *proc)
 	struct proc *found = NULL;
 	struct proc *child;
 
-	spinlock_acquire(&kproc.p_lock);
+	spinlock_acquire(&pid_lock);
 	hash_for_each_possible(proc_table, child, pid_link, pid) {
 		if (child->pid != pid || child->parent != proc)
 			continue;
@@ -147,7 +221,7 @@ proc_get_child(pid_t pid, struct proc *proc)
 		found = child;
 		break;
 	}
-	spinlock_release(&kproc.p_lock);
+	spinlock_release(&pid_lock);
 
 	return found;
 }
@@ -158,7 +232,6 @@ int proc_check_zombie(pid_t pid, int *wstatus, int options, struct proc *proc)
 	(void)options;
 
 	child = proc_get_child(pid, proc);
-
 	if (!child)
 		return ESRCH;
 
@@ -185,11 +258,25 @@ int proc_check_zombie(pid_t pid, int *wstatus, int options, struct proc *proc)
 	return 0;
 }
 
+static struct proc *proc_get_from_pid(pid_t pid)
+{
+	struct proc *proc;
+
+	KASSERT(spinlock_do_i_hold(&pid_lock));
+
+	hash_for_each_possible(proc_table, proc, pid_link, pid) {
+		if (proc->pid == pid)
+			return proc;
+	}
+
+	return NULL;
+}
+
 static inline void free_pid(struct proc *proc)
 {
-	spinlock_acquire(&kproc.p_lock);
+	spinlock_acquire(&pid_lock);
 	hash_del(&proc->pid_link);
-	spinlock_release(&kproc.p_lock);
+	spinlock_release(&pid_lock);
 
 	proc->pid = -1;
 }
@@ -197,16 +284,27 @@ static inline void free_pid(struct proc *proc)
 /**
  * Get the next greater pid.
 */
-static inline pid_t alloc_pid(void) 
+static inline pid_t __must_check alloc_pid(void) 
 {
     pid_t pid;
+	pid_t next_max;
     
-	spinlock_acquire(&kproc.p_lock);
-	max_pid += 1;
-    if (max_pid >= PID_MAX || max_pid < PID_MIN)
-        max_pid = PID_MIN;
+	spinlock_acquire(&pid_lock);
 	pid = max_pid;
-	spinlock_release(&kproc.p_lock);
+
+	/* Fail if the pid already exist */
+	if (proc_get_from_pid(pid)) {
+		pid = -1;
+		goto out;
+	}
+
+	next_max = pid + 1;
+    if (next_max >= PID_MAX || next_max < PID_MIN)
+        next_max = PID_MIN;
+	max_pid = next_max;
+
+out:
+	spinlock_release(&pid_lock);
 
     return pid;
 }
@@ -217,9 +315,9 @@ static inline pid_t alloc_pid(void)
  */
 static inline void insert_proc(struct proc *new)
 {
-	spinlock_acquire(&kproc.p_lock);
+	spinlock_acquire(&pid_lock);
 	hash_add(proc_table, &new->pid_link, new->pid);
-	spinlock_release(&kproc.p_lock);
+	spinlock_release(&pid_lock);
 }
 #endif // OPT_SYSCALLS
 
@@ -227,7 +325,7 @@ static inline void insert_proc(struct proc *new)
  * This is an internal function that is the
  * mirror of `proc_create`, we need this because there
  * are some cases where the structure inside proc may still
- * not be initialized, we will take care of that in error
+ * not be unitialized, we will take care of that in error
  * handling and in `proc_destroy` which uninitialize
  * everything.
  */
@@ -244,8 +342,8 @@ __proc_destroy(struct proc *proc)
 	KASSERT(proc->pid == -1);
 
 	// TODO: implemet this when the init proc will receive zombie children
-	// KASSERT(list_empty(&proc->children));
-	// KASSERT(list_empty(&proc->siblings));
+	KASSERT(list_empty(&proc->children));
+	KASSERT(list_empty(&proc->siblings));
 
 	cv_destroy(proc->wait_cv);
 	lock_destroy(proc->wait_lock);
@@ -474,6 +572,7 @@ proc_bootstrap(void)
 struct proc *
 proc_create_runprogram(const char *name)
 {
+	pid_t pid;
 	struct proc *newproc;
 
 	newproc = proc_create(name);
@@ -484,6 +583,17 @@ proc_create_runprogram(const char *name)
 	/* VM fields */
 
 	newproc->p_addrspace = NULL;
+
+#if OPT_SYSCALLS
+	pid = alloc_pid();
+	if (pid == -1)
+		return NULL;
+
+	newproc->pid = pid;
+	insert_proc(newproc);
+
+	add_new_child_proc(newproc, curproc);
+#endif // OPT_SYSCALLS
 
 	/* VFS fields */
 
@@ -498,13 +608,6 @@ proc_create_runprogram(const char *name)
 		newproc->p_cwd = curproc->p_cwd;
 	}
 	spinlock_release(&curproc->p_lock);
-
-#if OPT_SYSCALLS
-	newproc->pid = alloc_pid();
-	insert_proc(newproc);
-
-	add_new_child_proc(newproc, curproc);
-#endif // OPT_SYSCALLS
 
 #if OPT_SYSFS
 	file_table_init(newproc->ftable);
@@ -521,37 +624,37 @@ struct proc *
 proc_copy(void)
 {
 	struct proc *curr, *new_proc;
-	struct addrspace *as;
+	pid_t pid;
 	int err;
 
 	KASSERT(curproc != NULL);
 	curr = curproc;
 
-	new_proc = proc_create("proc_copy");
+	new_proc = proc_create((const char *)curr->p_name);
 	if (!new_proc)
 		return NULL;
 
-	err = as_copy(curr->p_addrspace, &as);
+	err = as_copy(curr->p_addrspace, &new_proc->p_addrspace);
 	if (err)
 		goto fork_out;
+
+#if OPT_SYSCALLS
+	new_proc->parent = curr;
+	add_new_child_proc(new_proc, curr);
+
+	pid = alloc_pid();
+	if (pid == -1)
+		goto bad_as_cleanup;
+
+	new_proc->pid = pid;
+	insert_proc(new_proc);
+#endif // OPT_SYSCALLS
 
 #if OPT_SYSFS
 	err = file_table_copy(curr->ftable, new_proc->ftable);
 	if (err)
-		goto fork_out;
+		goto bad_pid_cleanup;
 #endif // OPT_SYSFS
-
-	new_proc->p_addrspace = as;
-
-#if OPT_SYSCALLS
-	new_proc->parent = curr;
-
-	// TODO: fix this
-	new_proc->pid = alloc_pid();
-	insert_proc(new_proc);
-
-	add_new_child_proc(new_proc, curr);
-#endif // OPT_SYSCALLS
 
 	/*
 	 * Lock the current process to copy its current directory.
@@ -567,8 +670,18 @@ proc_copy(void)
 
 	return new_proc;
 
+bad_pid_cleanup:
+#if OPT_SYSCALLS
+	free_pid(new_proc);
+	del_child_proc(new_proc);
+#endif // OPT_SYSCALL
+
+bad_as_cleanup:
+	as_destroy(new_proc->p_addrspace);
+
 fork_out:
 	__proc_destroy(new_proc);
+
 	return NULL;
 }
 

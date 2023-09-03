@@ -122,6 +122,9 @@ struct proc {
 /* This is the process structure for the kernel and for kernel-only threads. */
 extern struct proc kproc;
 
+#define proc_for_each_child(child, temp, parent) \
+		list_for_each_entry_safe(child, temp, &parent->children, siblings)
+
 #if OPT_SYSCALLS
 extern void proc_make_zombie(int exit_code, struct proc *proc);
 
