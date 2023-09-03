@@ -110,7 +110,6 @@ static int readonly_fault(
 	int fault_type)
 {
 	struct page *page;
-	int retval;
 
 	// TODO: temp
 	(void)as;
@@ -142,9 +141,8 @@ static int readonly_fault(
 
 	pte_set_page(pte, page_to_kvaddr(page), PAGE_PRESENT | PAGE_RW | PAGE_ACCESSED | PAGE_DIRTY);
 
-	retval = vm_tlb_set_page(fault_address & PAGE_FRAME, page_to_paddr(page), true);
-	if (retval)
-		return retval;
+	vm_tlb_set_page(fault_address, page_to_paddr(page), true);
+	fstat_tlb_realoads();
 
 	return 0;
 }
@@ -176,17 +174,13 @@ static int vm_handle_fault(struct addrspace *as, vaddr_t fault_address, int faul
 		return page_not_present_fault(as, area, pte, fault_address, fault_type);
 	}
 
-	fstat_tlb_realoads();
-
+	/* The page is present in memory */
 	if (fault_type & VM_FAULT_READONLY) {
-		if (!pte_write(pte_entry)) {
-			return readonly_fault(as, area, pte, fault_address, fault_type);
-		}
-		/* The address was in a readonly area */
-		return EFAULT;
+		return readonly_fault(as, area, pte, fault_address, fault_type);
 	}
 
 	vm_tlb_set_page(fault_address, pte_paddr(pte_entry), pte_write(pte_entry));
+	fstat_tlb_realoads();
 
     return 0;
 }

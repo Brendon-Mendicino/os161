@@ -52,10 +52,11 @@ static inline int tlb_select_victim(void)
  * @param writable page is writable
  * @return error if any
  */
-int vm_tlb_set_page(vaddr_t faultaddress, paddr_t paddr, bool writable)
+tlb_state_t vm_tlb_set_page(vaddr_t faultaddress, paddr_t paddr, bool writable)
 {
 	uint32_t ehi, elo;
 	int index;
+	tlb_state_t retval = TLB_ENTRY_PRESENT;
 
 	/* make sure it's page-aligned */
 	KASSERT((paddr & PAGE_FRAME) == paddr);
@@ -67,6 +68,7 @@ int vm_tlb_set_page(vaddr_t faultaddress, paddr_t paddr, bool writable)
 	index = tlb_probe(faultaddress & TLBHI_VPAGE, 0);
 	if (index == -1) {
 		index = tlb_select_victim();
+		retval = TLB_ENTRY_NOT_PRESENT;
 	} else {
 		fstat_tlb_faults_with_free();
 	}
@@ -74,14 +76,16 @@ int vm_tlb_set_page(vaddr_t faultaddress, paddr_t paddr, bool writable)
 	ehi = faultaddress & TLBHI_VPAGE;
 	elo = (paddr & TLBLO_PPAGE) | (writable * TLBLO_DIRTY) | TLBLO_VALID;
 
-	if (index != -1)
+	if (index != -1) {
 		tlb_write(ehi, elo, index);
-	else
+	} else {
 		tlb_random(ehi, elo);
+	}
 
 	splx(spl);
 	spinlock_release(&tlb_lock);
-	return 0;
+
+	return retval;
 }
 
 /**

@@ -32,16 +32,16 @@ void fault_stat_print_info(void)
     if (atomic_read(&sys_fault_stat.tlb_faults) !=
         atomic_read(&sys_fault_stat.tlb_faults_with_free) +
         atomic_read(&sys_fault_stat.tlb_faults_with_replace))
-        kprintf("Warning: free + replace faults don't sum up to TLB faults!\n");
+        kprintf("[Warning] free + replace faults don't sum up to TLB faults!\n");
 
     if (atomic_read(&sys_fault_stat.tlb_faults) !=
         atomic_read(&sys_fault_stat.tlb_realoads) +
         atomic_read(&sys_fault_stat.page_faults_disk) +
         atomic_read(&sys_fault_stat.page_faults_zero))
-        kprintf("Warning: reaload + disk + zeroed faults don't sum up to TLB faults!\n");
+        kprintf("[Warning] reaload + disk + zeroed faults don't sum up to TLB faults!\n");
 
     if (atomic_read(&sys_fault_stat.page_faults_disk) !=
         atomic_read(&sys_fault_stat.page_faults_elf) +
         atomic_read(&sys_fault_stat.page_faults_swap))
-        kprintf("Warning: swap + ELF faults don't sum up to Disk faults!\n");
+        kprintf("[Warning] swap + ELF faults don't sum up to Disk faults!\n");
 }
