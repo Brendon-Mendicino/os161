@@ -31,11 +31,11 @@ options semfs			# Semaphores for userland
 options sfs			# Always use the file system
 #options netfs			# You might write this as a project.
 
-#options dumbvm			# Chewing gum and baling wire.
+options dumbvm			# Chewing gum and baling wire.
 
 options syscalls        # Enable new syscalls
 
-#options allocator       # Enable allocator
+options allocator       # Enable allocator
 
 options lock            # Enable locks
 options cv              # Enable condition variables
@@ -46,4 +46,4 @@ options args            # Enable argument passing to process
 
 options atomic          # Enable atomic type
 
-options paging          # Enable paging in the system
+#options paging          # Enable paging in the system

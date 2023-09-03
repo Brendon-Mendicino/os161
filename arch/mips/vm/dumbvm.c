@@ -39,6 +39,7 @@
 #include <addrspace.h>
 #include <vm.h>
 #include <atable.h>
+#include <copyinout.h>
 
 /*
  * Dumb MIPS-only "VM system" that is intended to only be just barely
@@ -455,12 +456,98 @@ as_complete_load(struct addrspace *as)
 	return 0;
 }
 
+#if OPT_ARGS
+/**
+ * @brief Sets up the user space that contains the args of the program.
+ * The args space is confined between the `USER_TOP` and the begenning of the
+ * user stack.
+ * 
+ * @param as 
+ * @param argc 
+ * @param argv 
+ * @param uargv 
+ * @return error code
+ */
+int as_define_args(struct addrspace *as, int argc, char **argv, userptr_t *uargv)
+{
+	int i;
+	size_t arg_map_size = 0;
+	size_t offset = 0;
+	char **user_argv;
+
+	KASSERT(as != NULL);
+
+	/*
+	 * When allocating the space for the args
+	 * we need two things to place in memory:
+	 * - the array of pointers to the args
+	 * - the actual strings for the args
+	 */
+
+	/* we need to add one beacuse the vec is NULL-terminated */
+	arg_map_size += (argc + 1) * sizeof(char *);
+
+	for (i = 0; i < argc; i++) {
+		arg_map_size += strlen(argv[i]) + 1;
+	}
+
+	/* stack pointer must be 8byte aligned */
+
+	/* last aligned address is not usable */
+	arg_map_size = ROUNDUP(arg_map_size, 8) + 8;
+
+	as->start_arg = USERSPACETOP - arg_map_size;
+	/* end is not inclusive */
+	as->end_arg = as->start_arg + arg_map_size;
+
+	KASSERT(as->start_arg < as->end_arg);
+
+	/* create the strcture to be copyied in userspace */
+	user_argv = kmalloc((argc + 1) * sizeof(char **));
+	if (!user_argv)
+		return ENOMEM;
+
+	/* setup the args array */
+	user_argv[0] = (char *)as->start_arg + (argc + 1) * sizeof(char **);
+	for (i = 1; i < argc; i++) {
+		user_argv[i] = (char *)user_argv[i-1] + strlen(argv[i-1]) + 1;
+	}
+	user_argv[i] = NULL;
+	
+	/* copy the args array to the user space */
+	copyout(user_argv, (userptr_t)as->start_arg, (argc + 1) * sizeof(char **));
+	kfree(user_argv);
+
+
+	offset = (argc + 1) * sizeof(char **);
+
+	/* copy the args to the user space */
+	for (i = 0; i < argc; i++) {
+		KASSERT(as->start_arg + offset < USERSPACETOP);
+
+		copyoutstr(argv[i], (userptr_t)as->start_arg + offset, strlen(argv[i]) + 1, NULL);
+
+		offset += strlen(argv[i]) + 1;
+	}
+
+	/* set the user argv pointer */
+	*uargv = (userptr_t)as->start_arg;
+
+	return 0;
+}
+#endif // OPT_ARGS
+
 int
 as_define_stack(struct addrspace *as, vaddr_t *stackptr)
 {
 	KASSERT(as->as_stackpbase != 0);
 
+#if OPT_ARGS
+	*stackptr = as->start_arg;
+#else // OPT_ARGS
 	*stackptr = USERSTACK;
+#endif // OPT_ARGS
+
 	return 0;
 }
 

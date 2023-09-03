@@ -146,6 +146,53 @@ load_segment(struct addrspace *as, struct vnode *v,
 	return result;
 }
 
+static int load_elf_header(struct vnode *v, Elf_Ehdr *eh)
+{
+	struct uio ku;
+	struct iovec iov;
+	int result;
+
+	/*
+	 * Read the executable header from offset 0 in the file.
+	 */
+	uio_kinit(&iov, &ku, eh, sizeof(*eh), (off_t)0, UIO_READ);
+	result = VOP_READ(v, &ku);
+	if (result)
+		return result;
+
+	if (ku.uio_resid != 0) {
+		/* short read; problem with executable? */
+		kprintf("ELF: short read on header - file truncated?\n");
+		return ENOEXEC;
+	}
+
+	/*
+	 * Check to make sure it's a 32-bit ELF-version-1 executable
+	 * for our processor type. If it's not, we can't run it.
+	 *
+	 * Ignore EI_OSABI and EI_ABIVERSION - properly, we should
+	 * define our own, but that would require tinkering with the
+	 * linker to have it emit our magic numbers instead of the
+	 * default ones. (If the linker even supports these fields,
+	 * which were not in the original elf spec.)
+	 */
+	if (eh->e_ident[EI_MAG0] != ELFMAG0 ||
+		eh->e_ident[EI_MAG1] != ELFMAG1 ||
+		eh->e_ident[EI_MAG2] != ELFMAG2 ||
+		eh->e_ident[EI_MAG3] != ELFMAG3 ||
+		eh->e_ident[EI_CLASS] != ELFCLASS32 ||
+		eh->e_ident[EI_DATA] != ELFDATA2MSB ||
+		eh->e_ident[EI_VERSION] != EV_CURRENT ||
+		eh->e_version != EV_CURRENT ||
+		eh->e_type != ET_EXEC ||
+		eh->e_machine != EM_MACHINE)
+	{
+		return ENOEXEC;
+	}
+
+	return 0;
+}
+
 #if OPT_PAGING
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 
@@ -228,53 +275,6 @@ static int load_ksegment(struct vnode *v,
 #endif
 
 	return result;
-}
-
-static int load_elf_header(struct vnode *v, Elf_Ehdr *eh)
-{
-	struct uio ku;
-	struct iovec iov;
-	int result;
-
-	/*
-	 * Read the executable header from offset 0 in the file.
-	 */
-	uio_kinit(&iov, &ku, eh, sizeof(*eh), (off_t)0, UIO_READ);
-	result = VOP_READ(v, &ku);
-	if (result)
-		return result;
-
-	if (ku.uio_resid != 0) {
-		/* short read; problem with executable? */
-		kprintf("ELF: short read on header - file truncated?\n");
-		return ENOEXEC;
-	}
-
-	/*
-	 * Check to make sure it's a 32-bit ELF-version-1 executable
-	 * for our processor type. If it's not, we can't run it.
-	 *
-	 * Ignore EI_OSABI and EI_ABIVERSION - properly, we should
-	 * define our own, but that would require tinkering with the
-	 * linker to have it emit our magic numbers instead of the
-	 * default ones. (If the linker even supports these fields,
-	 * which were not in the original elf spec.)
-	 */
-	if (eh->e_ident[EI_MAG0] != ELFMAG0 ||
-		eh->e_ident[EI_MAG1] != ELFMAG1 ||
-		eh->e_ident[EI_MAG2] != ELFMAG2 ||
-		eh->e_ident[EI_MAG3] != ELFMAG3 ||
-		eh->e_ident[EI_CLASS] != ELFCLASS32 ||
-		eh->e_ident[EI_DATA] != ELFDATA2MSB ||
-		eh->e_ident[EI_VERSION] != EV_CURRENT ||
-		eh->e_version != EV_CURRENT ||
-		eh->e_type != ET_EXEC ||
-		eh->e_machine != EM_MACHINE)
-	{
-		return ENOEXEC;
-	}
-
-	return 0;
 }
 
 /**
@@ -383,6 +383,7 @@ load_elf(struct vnode *v, vaddr_t *entrypoint)
 			return ENOEXEC;
 		}
 
+#if OPT_PAGING
 		result = as_define_region(as,
 					  ph.p_vaddr,
 					  ph.p_memsz,
@@ -391,6 +392,14 @@ load_elf(struct vnode *v, vaddr_t *entrypoint)
 					  ph.p_flags & PF_R,
 					  ph.p_flags & PF_W,
 					  ph.p_flags & PF_X);
+#else // OPT_PAGING
+		result = as_define_region(as,
+					  ph.p_vaddr,
+					  ph.p_memsz,
+					  ph.p_flags & PF_R,
+					  ph.p_flags & PF_W,
+					  ph.p_flags & PF_X);
+#endif // OPT_PAGING
 		if (result) {
 			return result;
 		}

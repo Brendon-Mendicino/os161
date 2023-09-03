@@ -396,7 +396,9 @@ cmd_memstat(int nargs, char **args)
 	(void)args;
 
 	kprintf("\n");
+#if OPT_PAGING
 	fault_stat_print_info();
+#endif // OPT_PAGING
 
 	kprintf("\n");
 	kprintf("OS161 Memory usage statistics:\n");

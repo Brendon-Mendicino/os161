@@ -115,7 +115,7 @@ kill_curthread(vaddr_t epc, unsigned code, vaddr_t vaddr, int cause)
 
 	kprintf("Fatal user mode trap %u sig %d (%s, epc 0x%x, vaddr 0x%x): %s\n",
 		code, sig, trapcodenames[code], epc, vaddr, strerror(cause));
-#if OPT_PAGING
+#if OPT_SYSCALLS
 	// TODO: use core dumpred for exit
 	sys__exit(_MKWAIT_SIG(sig));
 #else // OPT_PAGING

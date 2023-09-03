@@ -153,7 +153,6 @@ extern struct addrspace_area *as_find_area(struct addrspace *as, vaddr_t addr);
  *               in the space pointed to by ENTRYPOINT.
  */
 
-#if OPT_PAGING
 #define __read_segment(vnode, offset, elf_segment) \
 ({                              \
     struct iovec __iovec;                 \
@@ -183,7 +182,6 @@ extern struct addrspace_area *as_find_area(struct addrspace *as, vaddr_t addr);
         retval = __read_segment(vnode, __offset, elf_segment))
 
 extern int load_demand_page(struct addrspace *as, struct addrspace_area *area, vaddr_t fault_address, paddr_t paddr);
-#endif // OPT_PAGING
 
 int load_elf(struct vnode *v, vaddr_t *entrypoint);
 

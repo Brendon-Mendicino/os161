@@ -97,11 +97,9 @@ int runprogram(int argc, char **argv)
 	vfs_close(v);
 #endif // OPT_PAGING
 
-#if OPT_ARGS
 	result = as_define_args(as, argc, argv, &uargv);
 	if (result)
 		return result;
-#endif // OPT_ARGS
 
 	/* Define the user stack in the address space */
 	result = as_define_stack(as, &stackptr);
