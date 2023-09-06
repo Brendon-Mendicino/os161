@@ -54,19 +54,35 @@ static inline struct page *user_page_copy(struct page *page)
 
     KASSERT(page->flags == PGF_USER);
 
-    refcount = refcount_dec(&page->_mapcount);
+    /* 
+     * Check first if the refcount is not 1.
+     * If it's not 1 then allocate a page
+     * and copy the old one, and then check again
+     * if by decrementing the refcount we are the
+     * only owner, this is done to avaoid a race
+     * condition with user_page_put(), which
+     * could free the page before we copy it.
+     */
 
-    /* there is only one page left from the cow */
-    if (refcount == 0) {
-        refcount_set(&page->_mapcount, 1);
+    /* We are the only owner. */
+    refcount = refcount_read(&page->_mapcount);
+    if (refcount == 1)
         return page;
-    }
 
     new_page = alloc_user_page();
     if (!new_page)
         return NULL;
 
     memcpy((void *)page_to_kvaddr(new_page), (void *)page_to_kvaddr(page), PAGE_SIZE);
+
+    refcount = refcount_dec(&page->_mapcount);
+
+    /* there is only one page left from the cow */
+    if (refcount == 0) {
+        free_pages(new_page);
+        refcount_set(&page->_mapcount, 1);
+        return page;
+    }
 
     return new_page;
 }
