@@ -395,23 +395,33 @@ cmd_memstat(int nargs, char **args)
 	(void)nargs;
 	(void)args;
 
-	kprintf("\n");
-#if OPT_PAGING
-	fault_stat_print_info();
-#endif // OPT_PAGING
-
-	kprintf("\n");
 	kprintf("OS161 Memory usage statistics:\n");
-	kprintf("Memory statistics:\n");
-
 	vm_kpages_stats();
-
-	kprintf("\n");
+    kprintf("\n");
 
 	return 0;
 }
 
 #if OPT_PAGING
+/**
+ * @brief Info about TLB usage.
+ * 
+ * @param nargs 
+ * @param args 
+ * @return int 
+ */
+static int
+cmd_faultstat(int nargs, char **args)
+{
+	(void)nargs;
+	(void)args;
+
+	fault_stat_print_info();
+    kprintf("\n");
+
+	return 0;
+}
+
 /**
  * @brief Info about the swap memory.
  * 
@@ -426,6 +436,7 @@ cmd_swapstats(int nargs, char **args)
 	(void)args;
 
 	swap_print_info();
+    kprintf("\n");
 
 	return 0;
 }
@@ -637,7 +648,6 @@ static const char *opsmenu[] = {
 	"[debug]   Drop to debugger          ",
 	"[panic]   Intentional panic         ",
 	"[deadlock] Intentional deadlock     ",
-	"[memstat] Check memory usage 		 ",
 	"[q]       Quit and shut down        ",
 	NULL
 };
@@ -706,6 +716,8 @@ static const char *mainmenu[] = {
 	"[kh] Kernel heap stats              ",
 	"[khgen] Next kernel heap generation ",
 	"[khdump] Dump kernel heap           ",
+	"[mem] Check memory usage            ",
+	"[fault] Fault stats                 ",
 	"[swap] Swap memory stats            ",
 	"[swapdump] Dump swap memory         ",
 	"[q] Quit and shut down              ",
@@ -759,8 +771,9 @@ static struct {
 	{ "kh",         cmd_kheapstats },
 	{ "khgen",      cmd_kheapgeneration },
 	{ "khdump",     cmd_kheapdump },
-	{ "memstat", cmd_memstat },
+	{ "mem",        cmd_memstat },
 #if OPT_PAGING
+	{ "fault",      cmd_faultstat },
 	{ "swap",       cmd_swapstats },
 	{ "swapdump",   cmd_swapdump },
 #endif // OPT_PAGING

@@ -176,7 +176,7 @@ static int vm_handle_fault(struct addrspace *as, vaddr_t fault_address, int faul
 		return page_not_present_fault(as, area, pte, fault_address, fault_type);
 	}
 
-	/* The page is present in memory */
+	/* The page is not present in memory */
 	if (fault_type & VM_FAULT_READONLY) {
 		return readonly_fault(as, area, pte, fault_address, fault_type);
 	}

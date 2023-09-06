@@ -115,13 +115,13 @@ struct addrspace {
         paddr_t as_stackpbase;
         pmd_t *pmd;
 #elif OPT_PAGING
-        struct page_table pt;
+        struct page_table pt;   /* Page table associate with an address space. */
 
-        struct list_head addrspace_area_list;
+        struct list_head addrspace_area_list;   /* List of memory areas. */
 
-        struct lock  *as_file_lock;
+        struct lock  *as_file_lock;             /* Lock for the source file. */
 
-        struct vnode *source_file;
+        struct vnode *source_file;              /* Source file of the proc, NULL otherwise. */
 
         vaddr_t start_stack, end_stack;
 #endif // OPT_PAGING

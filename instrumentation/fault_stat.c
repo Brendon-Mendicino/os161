@@ -17,7 +17,7 @@ struct fault_stat sys_fault_stat = {
 
 void fault_stat_print_info(void)
 {
-    kprintf("TLB fautls statistics.\n\n");
+    kprintf("TLB fautls statistics:\n\n");
     kprintf("TLB faults:\t\t%10d\n", atomic_read(&sys_fault_stat.tlb_faults));
     kprintf("TLB faults with free:\t%10d\n", atomic_read(&sys_fault_stat.tlb_faults_with_free));
     kprintf("TLB faults replace:\t%10d\n", atomic_read(&sys_fault_stat.tlb_faults_with_replace));

@@ -13,12 +13,6 @@
 #include <vm_tlb.h>
 #include <kern/errno.h>
 
-#include "opt-allocator.h"
-
-#if OPT_ALLOCATOR
-#include <atable.h>
-#endif // OPT_ALLOCATOR
-
 /*
  * Wrap ram memory acces in a spinlock.
  */
@@ -386,6 +380,8 @@ static void buddy_print_info(void)
 {
 	unsigned order;
 
+	kprintf("Buddy systems info:\n");
+
 	for (order = 0; order <= MAX_ORDER; order += 1) {
 		unsigned n_free = main_zone.free_area[order].n_free;
 
@@ -412,6 +408,7 @@ static void page_print_info(void)
 		}
 	}
 
+	kprintf("Page info:\n");
 	kprintf("allocated pages:\t%8d\n", alloc_pages);
 	kprintf("free pages:\t\t%8d\n", main_zone.total_pages - alloc_pages);
 
