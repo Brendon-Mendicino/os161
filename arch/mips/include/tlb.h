@@ -30,6 +30,9 @@
 #ifndef _MIPS_TLB_H_
 #define _MIPS_TLB_H_
 
+
+extern struct spinlock tlb_lock;
+
 /*
  * MIPS-specific TLB access functions.
  *

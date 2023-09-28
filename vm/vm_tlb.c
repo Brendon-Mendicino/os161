@@ -17,7 +17,7 @@
  * Locks the TLB access.
  * 
  */
-static struct spinlock tlb_lock = SPINLOCK_INITIALIZER;
+struct spinlock tlb_lock = SPINLOCK_INITIALIZER;
 
 /**
  * @brief Select a victim entry from the tlb. If no entry
