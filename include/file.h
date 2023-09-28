@@ -59,6 +59,8 @@ extern int file_table_init(struct file_table *ftable);
 
 extern struct file *file_table_get(struct file_table *head, int fd);
 
+extern int file_table_dup2(struct file_table *ftable, int oldfd, int newfd);
+
 extern void file_table_clear(struct file_table *ftable);
 
 extern int file_table_copy(struct file_table *ftable, struct file_table *copy);

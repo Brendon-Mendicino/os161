@@ -60,7 +60,7 @@ void file_destroy(struct file *file)
     KASSERT(file != NULL);
 
     /* destroy the file if refcount is 0 */
-    destroy = (refcount_dec(&file->refcount) == 0) ? true : false;
+    destroy = refcount_dec(&file->refcount) == 0;
 
     if (!destroy)
         return;
@@ -233,6 +233,7 @@ struct file_table *file_table_create(void)
     struct file_table *ftable;
     int fd;
 
+    // TODO: remove kmalloc
     ftable = kmalloc(sizeof(struct file_table));
     if (!ftable)
         return NULL;
@@ -383,7 +384,34 @@ struct file *file_table_get(struct file_table *head, int fd)
     file = head->fd_array[fd];
     lock_release(head->table_lock);
 
+    // TODO: remember to increase refcount of file
     return file;
+}
+
+int file_table_dup2(struct file_table *ftable, int oldfd, int newfd)
+{
+    if (!check_fd(oldfd) || !check_fd(newfd))
+        return EBADF;
+
+    lock_acquire(ftable->table_lock);
+
+    struct file *old_file = ftable->fd_array[oldfd];
+    if (!old_file) {
+        lock_release(ftable->table_lock);
+        return EBADF;
+    }
+
+    struct file *new_file = ftable->fd_array[newfd];
+    if (new_file) {
+        file_destroy(new_file);
+    }
+    
+    refcount_inc(&old_file->refcount);
+    ftable->fd_array[newfd] = old_file;
+    
+    lock_release(ftable->table_lock);
+
+    return 0;
 }
 
 /**

@@ -63,6 +63,8 @@ int sys_reboot(int code);
 int sys___time(userptr_t user_seconds, userptr_t user_nanoseconds);
 
 #if OPT_SYSCALLS
+extern int sys_dup2(int oldfd, int newfd);
+
 int sys_write(int fd, const_userptr_t buf, size_t nbyte, size_t *size_wrote);
 
 int sys_read(int fd, userptr_t buf, size_t nbyte, size_t *size_read);
@@ -76,6 +78,8 @@ extern int sys_waitpid(pid_t pid, userptr_t wstatus, int options, pid_t *exit_pi
 extern pid_t sys_getpid(void);
 
 extern int sys_fork(pid_t *pid, struct trapframe *tf);
+
+extern int sys_fstat(int fd, userptr_t statbuf);
 #endif // OPT_SYSCALLS
 
 #if OPT_SYSFS

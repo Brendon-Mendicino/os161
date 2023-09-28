@@ -11,10 +11,19 @@
 #include <kern/errno.h>
 #include <kern/seek.h>
 #include <kern/unistd.h>
+#include <kern/stat.h>
 
 static inline bool check_whence(int whence)
 {
     return (whence == SEEK_CUR) || (whence == SEEK_SET) || (whence == SEEK_END);
+}
+
+int sys_dup2(int oldfd, int newfd)
+{
+    struct proc *proc = curproc;
+    KASSERT(proc != NULL);
+
+    return file_table_dup2(proc->ftable, oldfd, newfd);
 }
 
 int sys_write(int fd, const_userptr_t buf, size_t nbyte, size_t *size_wrote)
@@ -183,6 +192,29 @@ int sys_remove(const_userptr_t path)
         return retval;
 
     retval = vfs_remove(kpath);
+    if (retval)
+        return retval;
+
+    return 0;
+}
+
+int sys_fstat(int fd, userptr_t statbuf)
+{
+    int retval;
+    struct stat stat;
+
+    struct proc *proc = curproc;
+    KASSERT(proc != NULL);
+
+    struct file *file = proc_get_file(proc, fd);
+    if (!file) 
+        return EBADF;
+
+    retval = VOP_STAT(file->vnode, &stat);
+    if (retval)
+        return retval;
+
+    retval = copyout(&stat, statbuf, sizeof(struct stat));
     if (retval)
         return retval;
 

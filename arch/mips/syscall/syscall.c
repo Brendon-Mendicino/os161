@@ -121,6 +121,11 @@ void syscall(struct trapframe *tf)
 
 	/* Add stuff here */
 #if OPT_SYSCALLS
+	case SYS_dup2:
+		err = sys_dup2((int)tf->tf_a0, (int)tf->tf_a1);
+		retval = (int)tf->tf_a1;
+		break;
+
 	case SYS_write:
 		err = sys_write((int)tf->tf_a0,
 						(const_userptr_t)tf->tf_a1,
@@ -167,6 +172,10 @@ void syscall(struct trapframe *tf)
 
 	case SYS_fork:
 		err = sys_fork(&retval, tf);
+		break;
+
+	case SYS_fstat:
+		err = sys_fstat((int)tf->tf_a0, (userptr_t)tf->tf_a1);
 		break;
 #endif // OPT_SYSCALL
 
