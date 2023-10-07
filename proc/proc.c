@@ -797,6 +797,7 @@ int proc_add_new_file(struct proc *proc, struct file *file)
 	struct file_table *ftable = proc->ftable;
 	int fd;
 
+	// TOOD: modify fd assignment
 	fd = file_next_fd(ftable);
 	file->fd = fd;
 	// TODO: aggiungere gestione errore
