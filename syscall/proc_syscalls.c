@@ -42,26 +42,29 @@ void sys__exit(int status)
 
 int sys_waitpid(pid_t pid, userptr_t wstatus, int options, pid_t *exit_pid)
 {
-    int retval;
+    int retval = 0;
+    pid_t ret_pid;
     int sys_wstatus;
+    struct proc *curr = curproc;
 
     KASSERT(exit_pid != NULL);
+
+    if (options & WUNTRACED)
+        panic("sys_waitpid: WUNTRACED not implemented yet\n");
 
     if (!check_options(options))
         return EINVAL;
 
-    if (options != 0)
-        panic("sys_waitpid: options|wstatus not implemented yet\n");
+	struct proc *child = proc_get_child(pid, curr);
+	if (!child)
+		return ESRCH;
 
-    retval = proc_check_zombie(pid, &sys_wstatus, options, curproc);
-    if (retval)
-        return retval;
+    ret_pid = proc_check_zombie(child, &sys_wstatus, options, curr);
+    // TODO: cambiare
+    *exit_pid = ret_pid;
 
     if (wstatus != NULL)
         retval = copyout(&sys_wstatus, wstatus, sizeof(int));
-
-    // TODO: cambiare
-    *exit_pid = pid;
 
     return retval;
 }

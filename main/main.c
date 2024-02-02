@@ -134,6 +134,7 @@ boot(void)
 
 #if OPT_PAGING
 	swap_bootsrap();
+	kproc_bootstrap();
 #endif // OPT_PAGING
 
 	kheap_nextgeneration();

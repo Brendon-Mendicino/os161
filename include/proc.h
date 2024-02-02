@@ -122,19 +122,25 @@ struct proc {
 /* This is the process structure for the kernel and for kernel-only threads. */
 extern struct proc kproc;
 
+extern struct proc orphanage;
+
 #define proc_for_each_child(child, temp, parent) \
 		list_for_each_entry_safe(child, temp, &parent->children, siblings)
 
 #if OPT_SYSCALLS
 extern void proc_make_zombie(int exit_code, struct proc *proc);
 
-extern int proc_check_zombie(pid_t pid, int *wstatus, int options, struct proc *proc);
+extern pid_t proc_check_zombie(struct proc *child, int *wstatus, int options, struct proc *proc);
+
+extern struct proc *proc_get_child(pid_t pid, struct proc *proc);
 
 extern struct proc *proc_copy(void);
 #endif
 
 /* Call once during system startup to allocate data structures. */
 void proc_bootstrap(void);
+
+extern void kproc_bootstrap(void);
 
 /* Create a fresh process for use by runprogram(). */
 struct proc *proc_create_runprogram(const char *name);

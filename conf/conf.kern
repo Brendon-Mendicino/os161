@@ -362,6 +362,8 @@ optfile   paging vm/vmstats.c
 optfile   paging vm/memory.c
 optfile   paging vm/swap.c
 
+optfile   paging proc/proc_kernel.c
+
 optfile   paging instrumentation/fault_stat.c
 
 defoption args

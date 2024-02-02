@@ -151,10 +151,10 @@ common_prog(int nargs, char **args)
 
 #if OPT_SYSCALLS
 	int exit_code = 0;
-	int retval;
+	pid_t retval;
 	if (proc->pid != -1) {
-		retval = proc_check_zombie(proc->pid, &exit_code, 0, curproc);
-		if (retval)
+		retval = proc_check_zombie(proc, &exit_code, 0, curproc);
+		if (retval == 0)
 			panic("Kernel waiting for proc returned err: %d\n", retval);
 		kprintf("Exit status: %d\n", WEXITSTATUS(exit_code));
 	}

@@ -110,6 +110,9 @@ void del_child_proc(struct proc *child)
 	KASSERT(child != NULL);
 	KASSERT(child->parent != NULL);
 
+	// TODO: the lock has to be present before, modify ASAP, remove spinlock_acquire
+	// KASSERT(spinlock_do_i_hold(&child->parent->p_lock));
+
 	spinlock_acquire(&child->parent->p_lock);
 	list_del_init(&child->siblings);
 	spinlock_release(&child->parent->p_lock);
@@ -123,32 +126,36 @@ void add_new_child_proc(struct proc *new_child, struct proc *parent)
 	spinlock_release(&parent->p_lock);
 }
 
-// /**
-//  * @brief Set the new parent for a proc. The requirements to
-//  * call this funcitons are to already own the p_lock for the
-//  * new parent and for the old parent.
-//  * 
-//  * @param child 
-//  * @param parent 
-//  */
-// static void proc_set_parent(struct proc *child, struct proc *parent)
-// {
-// 	KASSERT(spinlock_do_i_hold(&parent->p_lock));
-// 	KASSERT(spinlock_do_i_hold(&child->parent->p_lock));
+/**
+ * @brief Set the new parent for a `proc`. The requirements to
+ * call this funcitons are to already own the p_lock for the
+ * new parent and for the old parent.
+ * 
+ * @param child child to exchange parent
+ * @param parent parent to remove the child from
+ * @param new_parent new parent of the child
+ */
+static void proc_set_parent(struct proc *child, struct proc *parent, struct proc *new_parent)
+{
+	KASSERT(spinlock_do_i_hold(&new_parent->p_lock));
+	KASSERT(spinlock_do_i_hold(&parent->p_lock));
 
-// 	spinlock_acquire(&child->p_lock);
+	spinlock_acquire(&child->p_lock);
+	KASSERT(child->parent == parent);
 
-// 	/* Parent is owned by child */
-// 	child->parent = parent;
+	/* Set the new owner of the child */
+	child->parent = new_parent;
 
-// 	/* List owned by current parent */
-// 	list_del_init(&child->siblings);
+	/* List owned by current parent,
+	 * we can safely access because the parent is locked
+	 */
+	list_del_init(&child->siblings);
 
-// 	/* List owned by new parent */
-// 	list_add_tail(&child->siblings, &parent->children);
+	/* List owned by new parent */
+	list_add_tail(&child->siblings, &new_parent->children);
 
-// 	spinlock_release(&child->p_lock);
-// }
+	spinlock_release(&child->p_lock);
+}
 
 // static struct proc *proc_get_parent(struct proc *proc)
 // {
@@ -167,30 +174,42 @@ void add_new_child_proc(struct proc *new_child, struct proc *parent)
 
 // }
 
+/**
+ * @brief this function orphanizes all the children of a process
+ * `proc`, all of it's children will be attached to the `kproc` process, 
+ * and it will handle when to destroy them. This has to be done
+ * because a process can only be destroyed by it's parent, but we cannot
+ * destroy them here because a `wait()` was never called on them before the
+ * `exit()` was. `kproc` will then destroy them when their status is to
+ * `ZOMBIE`.
+ * 
+ * @param proc proc to oprphanize all of it's children.
+ */
 static void proc_orphanize_childeren(struct proc *proc)
 {
-	// struct proc *child;
-	// struct proc *temp;
+	struct proc *child;
+	struct proc *temp;
 
-	// spinlock_acquire(&kproc.p_lock);
-	// spinlock_acquire(&proc->p_lock);
-
-	// proc_for_each_child(child, temp, proc) {
-	// 	proc_set_parent(child, &kproc);
-	// }
-
-	// spinlock_release(&proc->p_lock);
-	// spinlock_release(&kproc.p_lock);
-
-	// KASSERT(list_empty(&proc->children));
-
+	spinlock_acquire(&orphanage.p_lock);
 	spinlock_acquire(&proc->p_lock);
-	list_del_init(&proc->children);
+
+	proc_for_each_child(child, temp, proc) {
+		proc_set_parent(child, proc, &orphanage);
+	}
+
+	KASSERT(list_empty(&proc->children));
+
 	spinlock_release(&proc->p_lock);
+	spinlock_release(&orphanage.p_lock);
 }
 
 void proc_make_zombie(int exit_code, struct proc *proc)
 {
+	/* 
+	 * We need to attach all of the current childern 
+	 * to `kproc` before we can terminate the `exit()`
+	 * or set the state as ZOMBIE.
+	 */
 	proc_orphanize_childeren(proc);
 
 	lock_acquire(proc->wait_lock);
@@ -207,7 +226,7 @@ void proc_make_zombie(int exit_code, struct proc *proc)
 	V(proc->wait_sem);
 }
 
-static struct proc *
+struct proc *
 proc_get_child(pid_t pid, struct proc *proc)
 {
 	struct proc *found = NULL;
@@ -226,20 +245,43 @@ proc_get_child(pid_t pid, struct proc *proc)
 	return found;
 }
 
-int proc_check_zombie(pid_t pid, int *wstatus, int options, struct proc *proc)
+/**
+ * @brief Checks the status of a child process, if the child is a `ZOMBIE`
+ * it will be destroyed. Depending on the options it can return in a
+ * non-blocking way.
+ * 
+ * @param child child of `proc` to check it's `exit_state`
+ * @param wstatus set the `exit_code` of the child
+ * @param options `waitpid()` options
+ * @param proc parent of `child`
+ * @return pid_t return the `pid_t` of the child. If `WNOHANG` is set on
+ * the options and if the child has not exited yet, it will return 0.
+ */
+pid_t proc_check_zombie(struct proc *child, int *wstatus, int options, struct proc *proc)
 {
-	struct proc *child;
+	// TODO: `proc` should be locked
+	(void)proc;
+	pid_t retval = child->pid;
+
+	KASSERT(retval != 0);
 	(void)options;
 
-	child = proc_get_child(pid, proc);
-	if (!child)
-		return ESRCH;
+	bool no_hang = (options & WNOHANG) != 0;
 
 	lock_acquire(child->wait_lock);
 	while (child->exit_state != PROC_ZOMBIE) {
+		if (no_hang) {
+			retval = 0;
+			break;
+		}
+
 		cv_wait(child->wait_cv, child->wait_lock);
 	}
 	lock_release(child->wait_lock);
+
+	/* With WNOHANG, child has not exited yet. */
+	if (retval == 0)
+		return retval;
 
 	/**
 	 * Without this signal the father can kill the child proc
@@ -255,7 +297,7 @@ int proc_check_zombie(pid_t pid, int *wstatus, int options, struct proc *proc)
 	// TODO: move this
     proc_destroy(child);
 
-	return 0;
+	return retval;
 }
 
 static struct proc *proc_get_from_pid(pid_t pid)
