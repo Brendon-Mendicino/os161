@@ -176,13 +176,18 @@ static void write_at_end_swap_file(struct vnode *swap)
 {
     struct uio uio;
     struct iovec iovec;
-    char buff[PAGE_SIZE] = { 0 };
     int retval;
+
+    char *buff = kmalloc(PAGE_SIZE);
+    if (buff == NULL)
+        panic("No memory during swap_bootstrap!");
 
     uio_kinit(&iovec, &uio, (void *)buff, PAGE_SIZE, SWAP_SIZE, UIO_WRITE);
     retval = VOP_WRITE(swap, &uio);
     if (retval)
         panic("Swap bootstrap failed: %s\n", strerror(retval));
+
+    kfree(buff);
 }
 
 static inline void _swap_print_info(struct swap_memory *swap)
