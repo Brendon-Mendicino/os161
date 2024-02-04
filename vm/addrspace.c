@@ -143,6 +143,8 @@ as_copy_area(struct addrspace *new, struct addrspace *old)
 struct addrspace *
 as_create(void)
 {
+	// TODO: add vnode to the as creation
+
 	int retval;
 	struct addrspace *as;
 

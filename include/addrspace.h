@@ -183,7 +183,7 @@ extern struct addrspace_area *as_find_area(struct addrspace *as, vaddr_t addr);
 
 extern int load_demand_page(struct addrspace *as, struct addrspace_area *area, vaddr_t fault_address, paddr_t paddr);
 
-int load_elf(struct vnode *v, vaddr_t *entrypoint);
+int load_elf(struct addrspace *as, struct vnode *v, vaddr_t *entrypoint);
 
 
 #endif /* _ADDRSPACE_H_ */

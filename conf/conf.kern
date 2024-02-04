@@ -366,6 +366,8 @@ optfile   paging proc/proc_kernel.c
 
 optfile   paging instrumentation/fault_stat.c
 
+optfile   paging proc/exec.c
+
 defoption args
 
 #

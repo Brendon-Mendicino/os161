@@ -79,6 +79,8 @@ extern pid_t sys_getpid(void);
 
 extern int sys_fork(pid_t *pid, struct trapframe *tf);
 
+extern int sys_execv(const_userptr_t pathname, userptr_t argv);
+
 extern int sys_fstat(int fd, userptr_t statbuf);
 #endif // OPT_SYSCALLS
 

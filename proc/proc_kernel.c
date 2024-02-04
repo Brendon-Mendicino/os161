@@ -46,6 +46,8 @@ static void free_orphaned_children(void *ign, unsigned long ign2) {
             spinlock_acquire(&orphanage.p_lock);
         }
         spinlock_release(&orphanage.p_lock);
+
+        thread_yield();
     }
 }
 

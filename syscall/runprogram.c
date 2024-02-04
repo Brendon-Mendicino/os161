@@ -82,7 +82,7 @@ int runprogram(int argc, char **argv)
 	as_activate();
 
 	/* Load the executable. */
-	result = load_elf(v, &entrypoint);
+	result = load_elf(as, v, &entrypoint);
 	if (result) {
 		/* p_addrspace will go away when curproc is destroyed */
 		vfs_close(v);
@@ -112,6 +112,8 @@ int runprogram(int argc, char **argv)
 	enter_new_process(argc /*argc*/, uargv /*userspace addr of argv*/,
 			  NULL /*userspace addr of environment*/,
 			  stackptr, entrypoint);
+
+	// TODO: free as in case of failure!!
 
 	/* enter_new_process does not return. */
 	panic("enter_new_process returned\n");

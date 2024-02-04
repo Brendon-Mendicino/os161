@@ -81,6 +81,7 @@
         "random.h": "c",
         "device.h": "c",
         "swap.h": "c",
-        "fcntl.h": "c"
+        "fcntl.h": "c",
+        "exec.h": "c"
     }
 }

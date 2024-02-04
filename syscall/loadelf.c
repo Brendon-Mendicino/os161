@@ -341,14 +341,13 @@ int load_demand_page(struct addrspace *as, struct addrspace_area *area, vaddr_t 
  * Returns the entry point (initial PC) for the program in ENTRYPOINT.
  */
 int
-load_elf(struct vnode *v, vaddr_t *entrypoint)
+load_elf(struct addrspace *as, struct vnode *v, vaddr_t *entrypoint)
 {
 	Elf_Ehdr eh;   /* Executable header */
 	Elf_Phdr ph;   /* "Program header" = segment header */
 	int result;
-	struct addrspace *as;
 
-	as = proc_getas();
+	KASSERT(as != NULL);
 
 	result = load_elf_header(v, &eh);
 	if (result)

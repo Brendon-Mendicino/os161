@@ -250,7 +250,8 @@ proc_get_child(pid_t pid, struct proc *proc)
  * it will be destroyed. Depending on the options it can return in a
  * non-blocking way.
  * 
- * @param child child of `proc` to check it's `exit_state`
+ * @param child child of `proc` to check it's `exit_state`,
+ * if return value is not 0 this pointer becomes dangling
  * @param wstatus set the `exit_code` of the child
  * @param options `waitpid()` options
  * @param proc parent of `child`
